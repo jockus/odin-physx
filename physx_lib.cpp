@@ -1,10 +1,6 @@
 #include "physx_lib.h"
 #include <ctype.h>
-
 #include "PxPhysicsAPI.h"
-
-#include <Windows.h>
-#include <vector>
 
 #define PVD_HOST "127.0.0.1"	//Set this to the IP address of the system running the PhysX Visual Debugger that you want to connect to.
 #define PX_RELEASE(x)	if(x)	{ x->release(); x = NULL;	}
@@ -16,9 +12,9 @@ PxDefaultErrorCallback gErrorCallback;
 PxFoundation* gFoundation = NULL;
 PxPhysics* gPhysics	= NULL;
 PxDefaultCpuDispatcher* gDispatcher = NULL;
-PxScene* gScene		= NULL;
-PxMaterial* gMaterial	= NULL;
-PxPvd* gPvd        = NULL;
+PxScene* gScene = NULL;
+PxMaterial* gMaterial = NULL;
+PxPvd* gPvd = NULL;
 
 PxRigidDynamic* createDynamic(const PxTransform& t, const PxGeometry& geometry, const PxVec3& velocity=PxVec3(0))
 {
@@ -52,9 +48,10 @@ void init(bool initialize_pv) {
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
-	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
 
-	PxRigidStatic* groundPlane = PxCreatePlane(*gPhysics, PxPlane(0,1,0,0), *gMaterial);
+	// Create some test shapes
+	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
+	PxRigidStatic* groundPlane = PxCreatePlane(*gPhysics, PxPlane(0, 1, 0, 0), *gMaterial);
 	gScene->addActor(*groundPlane);
 }
 
@@ -78,7 +75,7 @@ void step(float dt) {
 }
 
 Body_Handle create_body(bool kinematic) {
-	return (Body_Handle) createDynamic(PxTransform(PxVec3(0,40,0)), PxSphereGeometry(0.5), PxVec3(0,0,0));
+	return (Body_Handle) createDynamic(PxTransform(PxVec3(0, 20, 0)), PxSphereGeometry(0.5), PxVec3(0, 0, 0));
 }
 
 Vec3 get_position(Body_Handle body) {
