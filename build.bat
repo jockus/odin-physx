@@ -1,3 +1,7 @@
+@echo off
+
+goto skip_physx
+
 rem Build physx
 if not exist physx_lib (
 	mkdir physx_lib
@@ -22,15 +26,31 @@ pushd physx_lib
 	 -DNV_USE_STATIC_WINCRT=TRUE^
 	 -DNV_USE_DEBUG_WINCRT=FALSE^
 	 -DPX_FLOAT_POINT_PRECISE_MATH=FALSE^
+	 -DPX_PHYSX_STATIC_LIB=1^
 	 -DCMAKE_BUILD_TYPE=release^
 	 && nmake
+	
+	rem copy libs to physx_lib folder for easier linking
+	for /R "%~dp0" %%F in ("*.lib") do copy %%~F .
 popd
 
+
+:skip_physx
 
 rem Compile c wrapper lib
 if not exist lib (
 	mkdir lib
 )
+
+set libs=^
+ ..\physx_lib\PhysX_static_64.lib^
+ ..\physx_lib\PhysXCommon_static_64.lib^
+ ..\physx_lib\PhysXExtensions_static_64.lib^
+ ..\physx_lib\PhysXFoundation_static_64.lib^
+ ..\physx_lib\PhysXPvdSDK_static_64.lib
+
+
 pushd lib
-cl.exe -MP
+cl.exe /c /DEBUG /EHsc -MP -DNDEBUG -DPX_PHYSX_STATIC_LIB -I..\Physx\physx\include -I..\Physx\pxshared\include ..\physx_lib.cpp
+lib.exe physx_lib.obj %libs%
 popd lib
