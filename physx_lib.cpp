@@ -12,51 +12,34 @@ PxDefaultErrorCallback gErrorCallback;
 PxFoundation* gFoundation = NULL;
 PxPhysics* gPhysics	= NULL;
 PxDefaultCpuDispatcher* gDispatcher = NULL;
-PxScene* gScene = NULL;
 PxMaterial* gMaterial = NULL;
 PxPvd* gPvd = NULL;
 
-PxRigidDynamic* createDynamic(const PxTransform& t, const PxGeometry& geometry, const PxVec3& velocity=PxVec3(0))
+PxRigidDynamic* createDynamic(PxScene* scene, const PxTransform& t, const PxGeometry& geometry, const PxVec3& velocity=PxVec3(0))
 {
 	PxRigidDynamic* dynamic = PxCreateDynamic(*gPhysics, t, geometry, *gMaterial, 10.0f);
 	dynamic->setAngularDamping(0.5f);
 	dynamic->setLinearVelocity(velocity);
-	gScene->addActor(*dynamic);
+	scene->addActor(*dynamic);
 	return dynamic;
 }
 
-void init(bool initialize_pv) {
+void init(bool initialize_pvd) {
 	gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 
-	gPvd = PxCreatePvd(*gFoundation);
-	PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
-	gPvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
-
-	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(),true,gPvd);
-
-	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
-	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
-	gDispatcher = PxDefaultCpuDispatcherCreate(2);
-	sceneDesc.cpuDispatcher	= gDispatcher;
-	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
-	gScene = gPhysics->createScene(sceneDesc);
-
-	PxPvdSceneClient* pvdClient = gScene->getScenePvdClient();
-	if(pvdClient)
-	{
-		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS, true);
-		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
-		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
+	if(initialize_pvd) {
+		gPvd = PxCreatePvd(*gFoundation);
+		PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
+		gPvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
 	}
+
+	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), true, gPvd);
 
 	// Create some test shapes
 	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
-	PxRigidStatic* groundPlane = PxCreatePlane(*gPhysics, PxPlane(0, 1, 0, 0), *gMaterial);
-	gScene->addActor(*groundPlane);
 }
 
 void destroy() {
-	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PX_RELEASE(gPhysics);
 	if(gPvd)
@@ -69,21 +52,109 @@ void destroy() {
 	PX_RELEASE(gFoundation);
 }
 
-void step(float dt) {
-	gScene->simulate(dt);
-	gScene->fetchResults(true);
+Scene_Handle scene_create() {
+	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
+	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
+	gDispatcher = PxDefaultCpuDispatcherCreate(2);
+	sceneDesc.cpuDispatcher	= gDispatcher;
+	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
+	
+	// Enable contacts between kinematic/kinematic/static actors
+	sceneDesc.kineKineFilteringMode = PxPairFilteringMode::eKEEP;
+	sceneDesc.staticKineFilteringMode = PxPairFilteringMode::eKEEP;
+
+	PxScene* scene = gPhysics->createScene(sceneDesc);
+	
+	PxPvdSceneClient* pvdClient = scene->getScenePvdClient();
+	if(pvdClient)
+	{
+		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONSTRAINTS, true);
+		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
+		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
+	}
+
+	return (Scene_Handle) scene;
 }
 
-Body_Handle create_body(bool kinematic) {
-	return (Body_Handle) createDynamic(PxTransform(PxVec3(0, 20, 0)), PxSphereGeometry(0.5), PxVec3(0, 0, 0));
+void scene_release(Scene_Handle scene_handle) {
+	PxScene* scene = (PxScene*) scene_handle;
+	PX_RELEASE(scene);
 }
 
-Vec3 get_position(Body_Handle body) {
-	PxRigidActor* actor = (PxRigidActor*) body;
-	return {actor->getGlobalPose().p.x, actor->getGlobalPose().p.y, actor->getGlobalPose().p.z};
+void scene_simulate(Scene_Handle scene_handle, float dt) {
+	PxScene* scene = (PxScene*) scene_handle;
+	scene->simulate(dt);
+	scene->fetchResults(true);
 }
 
-void set_position(Body_Handle body, Vec3 position) {
-	PxRigidActor* actor = (PxRigidActor*) body;
-	actor->setGlobalPose(PxTransform(PxVec3(position.x, position.y, position.z)));
+void scene_set_gravity(Scene_Handle scene_handle, Vector3f32 gravity) {
+	PxScene* scene = (PxScene*) scene_handle;
+	scene->setGravity(*(PxVec3*) &gravity);
+}
+
+void scene_add_actor(Scene_Handle scene_handle, Actor_Handle actor_handle) {
+	PxScene* scene = (PxScene*) scene_handle;
+	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	scene->addActor(*actor);
+}
+
+void scene_remove_actor(Scene_Handle scene_handle, Actor_Handle actor_handle) {
+	PxScene* scene = (PxScene*) scene_handle;
+	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	scene->removeActor(*actor);
+}
+
+Actor_Handle** scene_get_active_actors(Scene_Handle scene_handle, uint32_t* numActorsOut) {
+	PxScene* scene = (PxScene*) scene_handle;
+	return (Actor_Handle**) scene->getActiveActors(*numActorsOut);
+}
+
+Actor_Handle actor_create(bool kinematic) {
+	PxRigidDynamic* actor = gPhysics->createRigidDynamic(PxTransform());
+	if(kinematic) {
+		actor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
+	}
+
+	// TODO: Test geometry, remove once geometry add is in
+	PxSphereGeometry geometry(1);
+	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	actor->attachShape(*shape);
+	shape->release();
+
+	return (Actor_Handle) actor;
+}
+
+void actor_release(Actor_Handle actor_handle) {
+	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	actor->release();
+}
+
+void* actor_get_user_data(Actor_Handle actor_handle) {
+	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	return actor->userData;
+}
+
+void actor_set_user_data(Actor_Handle actor_handle, void* user_data) {
+	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	actor->userData = user_data;
+}
+
+Vector3f32 actor_get_position(Actor_Handle actor_handle) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	return *(Vector3f32*) &actor->getGlobalPose().p;
+}
+
+void actor_set_position(Actor_Handle actor_handle, Vector3f32 position) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	actor->setGlobalPose(PxTransform(*(PxVec3*) &position));
+}
+
+Vector3f32 actor_get_velocity(Actor_Handle actor_handle) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	return *(Vector3f32*) &actor->getLinearVelocity();
+}
+
+void actor_set_velocity(Actor_Handle actor_handle, Vector3f32 velocity) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	actor->setLinearVelocity(*(PxVec3*) &velocity);
 }
