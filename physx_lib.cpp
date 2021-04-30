@@ -1,67 +1,176 @@
 #include "physx_lib.h"
-#include <ctype.h>
 #include "PxPhysicsAPI.h"
+#include <stdio.h>
 
 #define PVD_HOST "127.0.0.1"	//Set this to the IP address of the system running the PhysX Visual Debugger that you want to connect to.
-#define PX_RELEASE(x)	if(x)	{ x->release(); x = NULL;	}
 
 using namespace physx;
 
 PxDefaultAllocator gAllocator;
 PxDefaultErrorCallback gErrorCallback;
-PxFoundation* gFoundation = NULL;
-PxPhysics* gPhysics	= NULL;
-PxDefaultCpuDispatcher* gDispatcher = NULL;
-PxMaterial* gMaterial = NULL;
-PxPvd* gPvd = NULL;
+PxFoundation* gFoundation = nullptr;
+PxPhysics* gPhysics	= nullptr;
+PxDefaultCpuDispatcher* gDispatcher = nullptr;
+PxMaterial* gMaterial = nullptr;
+PxPvd* gPvd = nullptr;
+PxCooking* gCooking	= nullptr;
 
-PxRigidDynamic* createDynamic(PxScene* scene, const PxTransform& t, const PxGeometry& geometry, const PxVec3& velocity=PxVec3(0))
+uint32_t nextPowerOfTwo(uint32_t x)
 {
-	PxRigidDynamic* dynamic = PxCreateDynamic(*gPhysics, t, geometry, *gMaterial, 10.0f);
-	dynamic->setAngularDamping(0.5f);
-	dynamic->setLinearVelocity(velocity);
-	scene->addActor(*dynamic);
-	return dynamic;
+	x |= (x >> 1);
+	x |= (x >> 2);
+	x |= (x >> 4);
+	x |= (x >> 8);
+	x |= (x >> 16);
+	return x + 1;
 }
 
-void init(bool initialize_pvd) {
+// TODO: Custom allocators
+class DefaultMemoryOutputStream : public PxOutputStream
+{
+public:
+	DefaultMemoryOutputStream(PxAllocatorCallback &allocator = PxGetFoundation().getAllocatorCallback()) 
+		: mAllocator(allocator)
+		, mData(0)
+		, mSize(0)
+		, mCapacity(0) {
+	}
+
+	virtual ~DefaultMemoryOutputStream() {
+		// Note, does not free
+	}
+
+	virtual PxU32 write(const void* src, PxU32 size) {
+		PxU32 expectedSize = mSize + size;
+		if(expectedSize > mCapacity)
+		{
+			mCapacity = PxMax(nextPowerOfTwo(expectedSize), 4096u);
+
+			PxU8* newData = reinterpret_cast<PxU8*>(mAllocator.allocate(mCapacity,"PxDefaultMemoryOutputStream",__FILE__,__LINE__));
+			PX_ASSERT(newData!=NULL);
+
+			PxMemCopy(newData, mData, mSize);
+			if(mData)
+				mAllocator.deallocate(mData);
+
+			mData = newData;
+		}
+		PxMemCopy(mData+mSize, src, size);
+		mSize += size;
+		return size;
+	}
+
+	virtual	PxU32 getSize()	const {
+		return mSize;
+	}
+	virtual	PxU8* getData()	const {
+		return mData;
+	}
+
+private:
+	DefaultMemoryOutputStream(const DefaultMemoryOutputStream&);
+	DefaultMemoryOutputStream& operator=(const DefaultMemoryOutputStream&);
+
+	PxAllocatorCallback& mAllocator;
+	PxU8* mData;
+	PxU32 mSize;
+	PxU32 mCapacity;
+};
+
+class DefaultMemoryInputData : public PxInputData
+{
+public:
+	DefaultMemoryInputData(PxU8* data, PxU32 length) 
+		: mSize(length)
+		  , mData(data)
+		  , mPos(0) {
+			  mData = data;
+			  mSize = length;
+		  }
+
+
+	virtual PxU32 read(void* dest, PxU32 count) {
+		PxU32 length = PxMin<PxU32>(count, mSize-mPos);
+		PxMemCopy(dest, mData+mPos, length);
+		mPos += length;
+		return length;
+	}
+
+	virtual PxU32 getLength() const {
+		return mSize;
+	}
+
+	virtual void seek(PxU32 offset) {
+		mPos = PxMin<PxU32>(mSize, offset);
+	}
+
+	virtual PxU32 tell() const {
+		return mPos;
+	}
+
+private:
+	PxU32		mSize;
+	const PxU8*	mData;
+	PxU32		mPos;
+};
+
+
+
+void init(bool initialize_cooking, bool initialize_pvd) {
+	// TODO: Replace with custom allocator procs
 	gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 
 	if(initialize_pvd) {
 		gPvd = PxCreatePvd(*gFoundation);
 		PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
-		gPvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
+		gPvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
 	}
 
-	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), true, gPvd);
+	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), false, gPvd);
+	PxInitExtensions(*gPhysics, gPvd);
 
-	// Create some test shapes
+	if(initialize_cooking) {
+		gCooking = PxCreateCooking(PX_PHYSICS_VERSION, *gFoundation, PxCookingParams(PxTolerancesScale()));
+	}
+
+	gDispatcher = PxDefaultCpuDispatcherCreate(4);
+
+	// TODO: Material support
 	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
 }
 
 void destroy() {
-	PX_RELEASE(gDispatcher);
-	PX_RELEASE(gPhysics);
+	PxCloseExtensions();
+	gDispatcher->release();
+	if(gCooking) {
+		gCooking->release();
+	}
+	gPhysics->release();
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
 		gPvd->release();
-		gPvd = NULL;
-		PX_RELEASE(transport);
+		gPvd = nullptr;
+		if(transport) {
+			transport->release();
+		}
 	}
-	PX_RELEASE(gFoundation);
+	gFoundation->release();
 }
 
 Scene_Handle scene_create() {
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
-	gDispatcher = PxDefaultCpuDispatcherCreate(2);
 	sceneDesc.cpuDispatcher	= gDispatcher;
-	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
+	sceneDesc.filterShader = PxDefaultSimulationFilterShader;
 	
 	// Enable contacts between kinematic/kinematic/static actors
 	sceneDesc.kineKineFilteringMode = PxPairFilteringMode::eKEEP;
 	sceneDesc.staticKineFilteringMode = PxPairFilteringMode::eKEEP;
+
+	// Enable getActiveActors
+	sceneDesc.flags.set(PxSceneFlag::eENABLE_ACTIVE_ACTORS);
+	// sceneDesc.flags.set(PxSceneFlag::eENABLE_CCD);
 
 	PxScene* scene = gPhysics->createScene(sceneDesc);
 	
@@ -78,7 +187,7 @@ Scene_Handle scene_create() {
 
 void scene_release(Scene_Handle scene_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
-	PX_RELEASE(scene);
+	scene->release();
 }
 
 void scene_simulate(Scene_Handle scene_handle, float dt) {
@@ -104,49 +213,50 @@ void scene_remove_actor(Scene_Handle scene_handle, Actor_Handle actor_handle) {
 	scene->removeActor(*actor);
 }
 
-Actor_Handle** scene_get_active_actors(Scene_Handle scene_handle, uint32_t* numActorsOut) {
+Actor_Handle* scene_get_active_actors(Scene_Handle scene_handle, uint32_t* numActorsOut) {
 	PxScene* scene = (PxScene*) scene_handle;
-	return (Actor_Handle**) scene->getActiveActors(*numActorsOut);
+	return (Actor_Handle*) scene->getActiveActors(*numActorsOut);
 }
 
-Actor_Handle actor_create(bool kinematic) {
-	PxRigidDynamic* actor = gPhysics->createRigidDynamic(PxTransform());
-	if(kinematic) {
-		actor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
-	}
-
-	// TODO: Test geometry, remove once geometry add is in
-	PxSphereGeometry geometry(1);
-	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
-	actor->attachShape(*shape);
-	shape->release();
-
-	return (Actor_Handle) actor;
+Actor_Handle actor_create() {
+	return (Actor_Handle) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
 }
 
 void actor_release(Actor_Handle actor_handle) {
-	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->release();
 }
 
 void* actor_get_user_data(Actor_Handle actor_handle) {
-	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return actor->userData;
 }
 
 void actor_set_user_data(Actor_Handle actor_handle, void* user_data) {
-	PxRigidActor* actor = (PxRigidActor*) actor_handle;
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->userData = user_data;
 }
 
-Vector3f32 actor_get_position(Actor_Handle actor_handle) {
+void actor_set_kinematic(Actor_Handle actor_handle, bool kinematic) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	return *(Vector3f32*) &actor->getGlobalPose().p;
+	actor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, kinematic);
 }
 
-void actor_set_position(Actor_Handle actor_handle, Vector3f32 position) {
+Transform actor_get_transform(Actor_Handle actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	actor->setGlobalPose(PxTransform(*(PxVec3*) &position));
+	return *(Transform*) &actor->getGlobalPose();
+}
+
+void actor_set_transform(Actor_Handle actor_handle, Transform transform, bool teleport) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	if(!teleport && (actor->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC))
+	{
+		actor->setKinematicTarget(*(PxTransform*) &transform);
+	}
+	else
+	{
+		actor->setGlobalPose(*(PxTransform*) &transform);
+	}
 }
 
 Vector3f32 actor_get_velocity(Actor_Handle actor_handle) {
@@ -157,4 +267,131 @@ Vector3f32 actor_get_velocity(Actor_Handle actor_handle) {
 void actor_set_velocity(Actor_Handle actor_handle, Vector3f32 velocity) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->setLinearVelocity(*(PxVec3*) &velocity);
+}
+
+void actor_add_shape_triangle_mesh(Actor_Handle actor_handle, Triangle_Mesh_Handle triangle_mesh_handle) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxTriangleMeshGeometry geometry;
+	geometry.triangleMesh = (PxTriangleMesh*) triangle_mesh_handle;
+	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	actor->attachShape(*shape);
+	shape->release();
+}
+
+void actor_add_shape_convex_mesh(Actor_Handle actor_handle, Convex_Mesh_Handle convex_mesh_handle) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxConvexMeshGeometry geometry;
+	geometry.convexMesh = (PxConvexMesh*) convex_mesh_handle;
+	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	actor->attachShape(*shape);
+	shape->release();
+	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
+}
+
+Buffer cook_triangle_mesh_precise(Mesh_Description mesh_description)
+{
+	bool inserted = false;
+	bool skipMeshCleanup = false; // true for fast
+	bool skipEdgeData = false; // true for fast
+	uint32_t numTrisPerLeaf = 4; // 15 for fast
+
+	PxTriangleMeshDesc meshDesc;
+	meshDesc.points.count = mesh_description.num_vertices;
+	meshDesc.points.data = mesh_description.vertices;
+	meshDesc.points.stride = mesh_description.vertex_stride;
+	meshDesc.triangles.count = mesh_description.num_triangles;
+	meshDesc.triangles.data = mesh_description.indices;
+	meshDesc.triangles.stride = mesh_description.triangle_stride;
+	
+	// TODO: option
+	// meshDesc.flags.set(PxMeshFlag::eFLIPNORMALS);
+
+	PxCookingParams params = gCooking->getParams();
+
+	// Create BVH34 midphase
+	params.midphaseDesc = PxMeshMidPhase::eBVH34;
+
+	// we suppress the triangle mesh remap table computation to gain some speed, as we will not need it 
+	// in this snippet
+	params.suppressTriangleMeshRemapTable = true;
+
+	// If DISABLE_CLEAN_MESH is set, the mesh is not cleaned during the cooking. The input mesh must be valid. 
+	// The following conditions are true for a valid triangle mesh :
+	//  1. There are no duplicate vertices(within specified vertexWeldTolerance.See PxCookingParams::meshWeldTolerance)
+	//  2. There are no large triangles(within specified PxTolerancesScale.)
+	// It is recommended to run a separate validation check in debug/checked builds, see below.
+
+	if (!skipMeshCleanup)
+		params.meshPreprocessParams &= ~static_cast<PxMeshPreprocessingFlags>(PxMeshPreprocessingFlag::eDISABLE_CLEAN_MESH);
+	else
+		params.meshPreprocessParams |= PxMeshPreprocessingFlag::eDISABLE_CLEAN_MESH;
+
+	// If DISABLE_ACTIVE_EDGES_PREDOCOMPUTE is set, the cooking does not compute the active (convex) edges, and instead 
+	// marks all edges as active. This makes cooking faster but can slow down contact generation. This flag may change 
+	// the collision behavior, as all edges of the triangle mesh will now be considered active.
+	if (!skipEdgeData)
+		params.meshPreprocessParams &= ~static_cast<PxMeshPreprocessingFlags>(PxMeshPreprocessingFlag::eDISABLE_ACTIVE_EDGES_PRECOMPUTE);
+	else
+		params.meshPreprocessParams |= PxMeshPreprocessingFlag::eDISABLE_ACTIVE_EDGES_PRECOMPUTE;
+
+	// Cooking mesh with less triangles per leaf produces larger meshes with better runtime performance
+	// and worse cooking performance. Cooking time is better when more triangles per leaf are used.
+	params.midphaseDesc.mBVH34Desc.numPrimsPerLeaf = numTrisPerLeaf;
+
+	gCooking->setParams(params);
+
+	if(!gCooking->validateTriangleMesh(meshDesc)) {
+		// TODO: error result
+	}
+
+	DefaultMemoryOutputStream outBuffer;
+	gCooking->cookTriangleMesh(meshDesc, outBuffer);
+
+	Buffer result;
+	result.data = outBuffer.getData();
+	result.size = outBuffer.getSize();
+	return result;
+}
+
+Buffer cook_convex_mesh(Mesh_Description mesh_description)
+{
+	PxConvexMeshDesc desc;
+	desc.points.data = mesh_description.vertices;
+	desc.points.count = mesh_description.num_vertices;
+	desc.points.stride = mesh_description.vertex_stride;
+	// TODO: Options to pass in complete convex mesh
+	desc.flags = PxConvexFlag::eCOMPUTE_CONVEX;
+
+	DefaultMemoryOutputStream outBuffer;
+	gCooking->cookConvexMesh(desc, outBuffer);
+
+	Buffer result;
+	result.data = outBuffer.getData();
+	result.size = outBuffer.getSize();
+	return result;
+}
+
+void buffer_free(Buffer buffer) {
+	PxAllocatorCallback &allocator = PxGetFoundation().getAllocatorCallback();
+	if(buffer.data) {
+		allocator.deallocate(buffer.data);
+	}
+}
+
+Triangle_Mesh_Handle triangle_mesh_create(Buffer buffer) {
+	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
+	return (Triangle_Mesh_Handle) gPhysics->createTriangleMesh(stream);
+}
+void triangle_mesh_release(Triangle_Mesh_Handle triangle_mesh_handle) {
+	PxTriangleMesh* triangle_mesh = (PxTriangleMesh*) triangle_mesh_handle;
+	triangle_mesh->release();
+}
+
+Convex_Mesh_Handle convex_mesh_create(Buffer buffer) {
+	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
+	return (Convex_Mesh_Handle) gPhysics->createConvexMesh(stream);
+}
+void convex_mesh_release(Triangle_Mesh_Handle triangle_mesh_handle) {
+	PxConvexMesh* convex_mesh = (PxConvexMesh*) triangle_mesh_handle;
+	convex_mesh->release();
 }
