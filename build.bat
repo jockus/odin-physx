@@ -27,7 +27,7 @@ pushd physx_lib
 	 -DNV_USE_DEBUG_WINCRT=FALSE^
 	 -DPX_FLOAT_POINT_PRECISE_MATH=FALSE^
 	 -DPX_PHYSX_STATIC_LIB=1^
-	 -DCMAKE_BUILD_TYPE=release^
+	 -DCMAKE_BUILD_TYPE=profile^
 	 && nmake
 	
 	rem copy libs to physx_lib folder for easier linking
@@ -43,14 +43,15 @@ if not exist lib (
 )
 
 set libs=^
- ..\physx_lib\PhysX_static_64.lib^
- ..\physx_lib\PhysXCommon_static_64.lib^
- ..\physx_lib\PhysXExtensions_static_64.lib^
- ..\physx_lib\PhysXFoundation_static_64.lib^
- ..\physx_lib\PhysXPvdSDK_static_64.lib
+ physx_lib\PhysX_static_64.lib^
+ physx_lib\PhysXCharacterKinematic_static_64.lib^
+ physx_lib\PhysXCommon_static_64.lib^
+ physx_lib\PhysXCooking_static_64.lib^
+ physx_lib\PhysXExtensions_static_64.lib^
+ physx_lib\PhysXFoundation_static_64.lib^
+ physx_lib\PhysXPvdSDK_static_64.lib^
+ physx_lib\PhysXVehicle_static_64.lib
 
 
-pushd lib
-cl.exe /c /DEBUG /EHsc -MP -DNDEBUG -DPX_PHYSX_STATIC_LIB -I..\Physx\physx\include -I..\Physx\pxshared\include ..\physx_lib.cpp
-lib.exe physx_lib.obj %libs%
-popd lib
+cl.exe -Z7 /c /Folib\ -MP -DNDEBUG -DPX_PHYSX_STATIC_LIB -IPhysx\physx\include -IPhysx\pxshared\include physx_lib.cpp
+lib.exe lib\physx_lib.obj %libs% /out:.\lib\physx_lib.lib
