@@ -18,7 +18,7 @@ pushd physx_lib
 	 --no-warn-unused-cli^
 	 -DCMAKE_PREFIX_PATH="%root%/externals/CMakeModules;%root%/externals/targa"^
 	 -DPHYSX_ROOT_DIR="%root%/physx"^
-	 -DPX_OUTPUT_LIB_DIR="lib"^
+	 -DPX_OUTPUT_LIB_DIR="%root%/lib"^
 	 -DPX_OUTPUT_BIN_DIR="%root%/physx"^
 	 -DPX_BUILDSNIPPETS=FALSE^
 	 -DPX_BUILDPUBLICSAMPLES=FALSE^
@@ -33,7 +33,6 @@ pushd physx_lib
 	rem copy libs to physx_lib folder for easier linking
 	for /R "%~dp0" %%F in ("*.lib") do copy %%~F .
 popd
-
 
 :skip_physx
 
