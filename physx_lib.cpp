@@ -158,7 +158,7 @@ void destroy() {
 	gFoundation->release();
 }
 
-Scene_Handle scene_create() {
+Scene scene_create() {
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
 	sceneDesc.cpuDispatcher	= gDispatcher;
@@ -182,72 +182,72 @@ Scene_Handle scene_create() {
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
 
-	return (Scene_Handle) scene;
+	return (Scene) scene;
 }
 
-void scene_release(Scene_Handle scene_handle) {
+void scene_release(Scene scene_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	scene->release();
 }
 
-void scene_simulate(Scene_Handle scene_handle, float dt) {
+void scene_simulate(Scene scene_handle, float dt) {
 	PxScene* scene = (PxScene*) scene_handle;
 	scene->simulate(dt);
 	scene->fetchResults(true);
 }
 
-void scene_set_gravity(Scene_Handle scene_handle, Vector3f32 gravity) {
+void scene_set_gravity(Scene scene_handle, Vector3f32 gravity) {
 	PxScene* scene = (PxScene*) scene_handle;
 	scene->setGravity(*(PxVec3*) &gravity);
 }
 
-void scene_add_actor(Scene_Handle scene_handle, Actor_Handle actor_handle) {
+void scene_add_actor(Scene scene_handle, Actor actor_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRigidActor* actor = (PxRigidActor*) actor_handle;
 	scene->addActor(*actor);
 }
 
-void scene_remove_actor(Scene_Handle scene_handle, Actor_Handle actor_handle) {
+void scene_remove_actor(Scene scene_handle, Actor actor_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRigidActor* actor = (PxRigidActor*) actor_handle;
 	scene->removeActor(*actor);
 }
 
-Actor_Handle* scene_get_active_actors(Scene_Handle scene_handle, uint32_t* numActorsOut) {
+Actor* scene_get_active_actors(Scene scene_handle, uint32_t* numActorsOut) {
 	PxScene* scene = (PxScene*) scene_handle;
-	return (Actor_Handle*) scene->getActiveActors(*numActorsOut);
+	return (Actor*) scene->getActiveActors(*numActorsOut);
 }
 
-Actor_Handle actor_create() {
-	return (Actor_Handle) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
+Actor actor_create() {
+	return (Actor) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
 }
 
-void actor_release(Actor_Handle actor_handle) {
+void actor_release(Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->release();
 }
 
-void* actor_get_user_data(Actor_Handle actor_handle) {
+void* actor_get_user_data(Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return actor->userData;
 }
 
-void actor_set_user_data(Actor_Handle actor_handle, void* user_data) {
+void actor_set_user_data(Actor actor_handle, void* user_data) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->userData = user_data;
 }
 
-void actor_set_kinematic(Actor_Handle actor_handle, bool kinematic) {
+void actor_set_kinematic(Actor actor_handle, bool kinematic) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, kinematic);
 }
 
-Transform actor_get_transform(Actor_Handle actor_handle) {
+Transform actor_get_transform(Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return *(Transform*) &actor->getGlobalPose();
 }
 
-void actor_set_transform(Actor_Handle actor_handle, Transform transform, bool teleport) {
+void actor_set_transform(Actor actor_handle, Transform transform, bool teleport) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	if(!teleport && (actor->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC))
 	{
@@ -259,17 +259,17 @@ void actor_set_transform(Actor_Handle actor_handle, Transform transform, bool te
 	}
 }
 
-Vector3f32 actor_get_velocity(Actor_Handle actor_handle) {
+Vector3f32 actor_get_velocity(Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return *(Vector3f32*) &actor->getLinearVelocity();
 }
 
-void actor_set_velocity(Actor_Handle actor_handle, Vector3f32 velocity) {
+void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->setLinearVelocity(*(PxVec3*) &velocity);
 }
 
-void actor_add_shape_triangle_mesh(Actor_Handle actor_handle, Triangle_Mesh_Handle triangle_mesh_handle) {
+void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxTriangleMeshGeometry geometry;
 	geometry.triangleMesh = (PxTriangleMesh*) triangle_mesh_handle;
@@ -278,7 +278,7 @@ void actor_add_shape_triangle_mesh(Actor_Handle actor_handle, Triangle_Mesh_Hand
 	shape->release();
 }
 
-void actor_add_shape_convex_mesh(Actor_Handle actor_handle, Convex_Mesh_Handle convex_mesh_handle) {
+void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxConvexMeshGeometry geometry;
 	geometry.convexMesh = (PxConvexMesh*) convex_mesh_handle;
@@ -288,7 +288,7 @@ void actor_add_shape_convex_mesh(Actor_Handle actor_handle, Convex_Mesh_Handle c
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-Buffer cook_triangle_mesh_precise(Mesh_Description mesh_description)
+Buffer cook_triangle_mesh(Mesh_Description mesh_description)
 {
 	bool inserted = false;
 	bool skipMeshCleanup = false; // true for fast
@@ -378,20 +378,86 @@ void buffer_free(Buffer buffer) {
 	}
 }
 
-Triangle_Mesh_Handle triangle_mesh_create(Buffer buffer) {
+Triangle_Mesh triangle_mesh_create(Buffer buffer) {
 	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
-	return (Triangle_Mesh_Handle) gPhysics->createTriangleMesh(stream);
+	return (Triangle_Mesh) gPhysics->createTriangleMesh(stream);
 }
-void triangle_mesh_release(Triangle_Mesh_Handle triangle_mesh_handle) {
+void triangle_mesh_release(Triangle_Mesh triangle_mesh_handle) {
 	PxTriangleMesh* triangle_mesh = (PxTriangleMesh*) triangle_mesh_handle;
 	triangle_mesh->release();
 }
 
-Convex_Mesh_Handle convex_mesh_create(Buffer buffer) {
+Convex_Mesh convex_mesh_create(Buffer buffer) {
 	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
-	return (Convex_Mesh_Handle) gPhysics->createConvexMesh(stream);
+	return (Convex_Mesh) gPhysics->createConvexMesh(stream);
 }
-void convex_mesh_release(Triangle_Mesh_Handle triangle_mesh_handle) {
-	PxConvexMesh* convex_mesh = (PxConvexMesh*) triangle_mesh_handle;
+
+void convex_mesh_release(Convex_Mesh convex_mesh_handle) {
+	PxConvexMesh* convex_mesh = (PxConvexMesh*) convex_mesh_handle;
 	convex_mesh->release();
+}
+
+Controller_Manager controller_manager_create(Scene scene_handle) {
+	return (Controller_Manager) PxCreateControllerManager(*((PxScene*) scene_handle));
+}
+
+void controller_manager_release(Controller_Manager controller_manager_handle) {
+	PxControllerManager* controller_manager = (PxControllerManager*) controller_manager_handle;
+	controller_manager->release();
+}
+
+Controller controller_create(Controller_Manager controller_manager_handle) {
+	// TODO: Config
+	#define CONTACT_OFFSET			0.01f
+	#define STEP_OFFSET				0.05f
+	#define SLOPE_LIMIT				0.0f
+	#define INVISIBLE_WALLS_HEIGHT	0.0f
+	#define MAX_JUMP_HEIGHT			0.0f
+	static const float gScaleFactor			= 1.5f;
+	static const float gStandingSize		= 1.0f * gScaleFactor;
+	static const float gCrouchingSize		= 0.25f * gScaleFactor;
+	static const float gControllerRadius	= 0.3f * gScaleFactor;
+
+	PxControllerManager* controller_manager = (PxControllerManager*) controller_manager_handle;
+	PxCapsuleControllerDesc desc;
+	desc.position				= PxExtendedVec3(0,0,0);
+	desc.slopeLimit			= SLOPE_LIMIT;
+	desc.contactOffset			= CONTACT_OFFSET;
+	desc.stepOffset			= STEP_OFFSET;
+	desc.invisibleWallHeight	= INVISIBLE_WALLS_HEIGHT;
+	desc.maxJumpHeight			= MAX_JUMP_HEIGHT;
+	desc.radius				= gControllerRadius;
+	desc.height				= gStandingSize;
+	desc.material = gMaterial;
+	desc.upDirection = PxVec3(0,1,0);
+	// desc.crouchHeight			= gCrouchingSize;
+	// desc.reportCallback		= this;
+	// desc.behaviorCallback		= this;
+	PxController* controller = controller_manager->createController(desc); 
+	return (Controller) controller;
+}
+
+void controller_release(Controller controller_handle) {
+	PxController* controller = (PxController*) controller_handle;
+	controller->release();
+}
+
+Vector3f32 controller_get_position(Controller controller_handle) {
+	PxController* controller = (PxController*) controller_handle;
+	Vector3f32 result;
+	result.data[0] = controller->getPosition().x;
+	result.data[1] = controller->getPosition().y;
+	result.data[2] = controller->getPosition().z;
+	return result;
+}
+
+void controller_set_position(Controller controller_handle, Vector3f32 position) {
+	PxController* controller = (PxController*) controller_handle;
+}
+
+void controller_move(Controller controller_handle, Vector3f32 displacement, float minimum_distance, float dt) {
+	PxController* controller = (PxController*) controller_handle;
+	PxControllerFilters filters;
+	PxVec3 disp = *(PxVec3*) &displacement;
+	controller->move(disp, minimum_distance, dt, filters);
 }
