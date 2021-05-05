@@ -12,7 +12,7 @@ pushd physx_lib
 	set "root=%root:\=/%"
 
 	cmake -G "NMake Makefiles"^
-	 %root%/physx/compiler/public/^
+	 %root%/physx/source/compiler/cmake/^
 	 -DTARGET_BUILD_PLATFORM=windows^
 	 -DPX_OUTPUT_ARCH=x86^
 	 --no-warn-unused-cli^
@@ -28,10 +28,13 @@ pushd physx_lib
 	 -DPX_FLOAT_POINT_PRECISE_MATH=FALSE^
 	 -DPX_PHYSX_STATIC_LIB=1^
 	 -DCMAKE_BUILD_TYPE=profile^
+	 -DPM_CMakeModules_PATH="%root%/externals/CMakeModules"^
+	 -DCMAKEMODULES_PATH="%root%/externals/CMakeModules"^
+	 -DPXSHARED_PATH="%root%/pxshared"^
 	 && nmake
 	
 	rem copy libs to physx_lib folder for easier linking
-	for /R "%~dp0" %%F in ("*.lib") do copy %%~F .
+	for /R "%~dp0" %%F in ("*.lib") do copy /Y %%~F . >NUL
 popd
 
 :skip_physx
