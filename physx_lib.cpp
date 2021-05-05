@@ -1,12 +1,14 @@
 #include "physx_lib.h"
 #include "PxPhysicsAPI.h"
+#include "foundation/PxMath.h"
 #include <stdio.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
 #define PVD_HOST "127.0.0.1"	//Set this to the IP address of the system running the PhysX Visual Debugger that you want to connect to.
 
 using namespace physx;
 
-PxDefaultAllocator gAllocator;
 PxDefaultErrorCallback gErrorCallback;
 PxFoundation* gFoundation = nullptr;
 PxPhysics* gPhysics	= nullptr;
@@ -15,7 +17,40 @@ PxMaterial* gMaterial = nullptr;
 PxPvd* gPvd = nullptr;
 PxCooking* gCooking	= nullptr;
 
-uint32_t nextPowerOfTwo(uint32_t x)
+Vector3f32 to_vec(PxVec3 v) {
+	return *(Vector3f32*) &v;
+}
+
+PxVec3 to_px(Vector3f32 v) {
+	return *(PxVec3*) &v;
+}
+
+class Allocator_Callback : public PxAllocatorCallback
+{
+public:
+	Allocator_Callback() {}
+
+	Allocator_Callback(Allocator allocator)
+		: allocator(allocator) {
+	}
+	virtual ~Allocator_Callback()
+	{
+	}
+
+	virtual void* allocate(size_t size, const char* type_name, const char* filename, int line) override {
+		return allocator.allocate_16_byte_aligned(allocator.user_data, size);
+	}
+
+	virtual void deallocate(void* ptr) {
+		allocator.deallocate(allocator.user_data, ptr);
+	}
+
+	Allocator allocator;
+};
+Allocator_Callback gAllocator;
+
+
+uint32_t next_power_of_two(uint32_t x)
 {
 	x |= (x >> 1);
 	x |= (x >> 2);
@@ -25,9 +60,7 @@ uint32_t nextPowerOfTwo(uint32_t x)
 	return x + 1;
 }
 
-// TODO: Custom allocators
-class DefaultMemoryOutputStream : public PxOutputStream
-{
+class DefaultMemoryOutputStream : public PxOutputStream {
 public:
 	DefaultMemoryOutputStream(PxAllocatorCallback &allocator = PxGetFoundation().getAllocatorCallback()) 
 		: mAllocator(allocator)
@@ -44,7 +77,7 @@ public:
 		PxU32 expectedSize = mSize + size;
 		if(expectedSize > mCapacity)
 		{
-			mCapacity = PxMax(nextPowerOfTwo(expectedSize), 4096u);
+			mCapacity = PxMax(next_power_of_two(expectedSize), 4096u);
 
 			PxU8* newData = reinterpret_cast<PxU8*>(mAllocator.allocate(mCapacity,"PxDefaultMemoryOutputStream",__FILE__,__LINE__));
 			PX_ASSERT(newData!=NULL);
@@ -77,8 +110,7 @@ private:
 	PxU32 mCapacity;
 };
 
-class DefaultMemoryInputData : public PxInputData
-{
+class DefaultMemoryInputData : public PxInputData {
 public:
 	DefaultMemoryInputData(PxU8* data, PxU32 length) 
 		: mSize(length)
@@ -114,10 +146,125 @@ private:
 	PxU32		mPos;
 };
 
+PxFilterFlags CollisionFilterShader(
+    PxFilterObjectAttributes attributes0, PxFilterData filterData0,
+    PxFilterObjectAttributes attributes1, PxFilterData filterData1,
+    PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
+{
+    // let triggers through
+    if(PxFilterObjectIsTrigger(attributes0) || PxFilterObjectIsTrigger(attributes1))
+    {
+        pairFlags = PxPairFlag::eTRIGGER_DEFAULT;
+        return PxFilterFlag::eDEFAULT;
+    }
+    // generate contacts for all that were not filtered above
+    pairFlags = PxPairFlag::eCONTACT_DEFAULT;
 
+	// TODO: Setup touch/not etc?
+    // if((filterData0.word0 & filterData1.word1) && (filterData1.word0 & filterData0.word1))
+        pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
+        pairFlags |= PxPairFlag::eNOTIFY_CONTACT_POINTS;
 
-void init(bool initialize_cooking, bool initialize_pvd) {
-	// TODO: Replace with custom allocator procs
+    return PxFilterFlag::eDEFAULT;
+}
+
+class SimulationEventCallback : public PxSimulationEventCallback {
+public:
+
+	// TODO: Init setting
+	#define MAX_NOTIFY 256
+	Contact touch[MAX_NOTIFY];
+	int numTouch = 0;
+
+	Trigger triggers[MAX_NOTIFY];
+	int numTrigger = 0;
+
+	void onConstraintBreak(PxConstraintInfo* constraints, PxU32 count) {}
+	void onWake(PxActor** actors, PxU32 count) {}
+	void onSleep(PxActor** actors, PxU32 count) {}
+	void onAdvance(const PxRigidBody*const* bodyBuffer, const PxTransform* poseBuffer, const PxU32 count) {}
+	void onContact(const PxContactPairHeader& pairHeader, const PxContactPair* pairs, PxU32 nbPairs) override
+	{	
+		if(pairHeader.flags & (PxContactPairHeaderFlag::eREMOVED_ACTOR_0 | PxContactPairHeaderFlag::eREMOVED_ACTOR_1) )
+		{
+			return;
+		}
+		if(numTouch >= MAX_NOTIFY)
+		{
+			printf("Too many contacts, discarding the rest\n");
+			return;
+		}
+
+		PxVec3 pos(PxZero);
+		PxVec3 normal(PxZero);
+		PxVec3 impulse(PxZero);
+		float separation = 0.0f;
+		for(PxU32 i=0; i < nbPairs; i++)
+		{
+			const PxContactPair& cp = pairs[i];
+
+			if(cp.events & PxPairFlag::eNOTIFY_TOUCH_FOUND || 
+				cp.events & PxPairFlag::eNOTIFY_TOUCH_PERSISTS)
+			{
+				PxContactPairPoint ContactPointBuffer[16];
+				int32_t NumContactPoints = cp.extractContacts(ContactPointBuffer, 16);
+				// Use first contact point as collision posiion
+				if(NumContactPoints > 0)
+				{
+					pos = ContactPointBuffer[0].position;
+					normal = ContactPointBuffer[0].normal;
+					separation = ContactPointBuffer[0].separation;
+				}
+				// Accumulate all contact impulses
+				for(int32_t PointIdx=0; PointIdx < NumContactPoints; PointIdx++)
+				{
+					const PxContactPairPoint& Point = ContactPointBuffer[PointIdx];
+
+					const PxVec3 NormalImpulse = Point.impulse.dot(Point.normal) * Point.normal; // project impulse along normal
+					impulse += NormalImpulse;
+				}	
+			}
+		}
+		Contact& contact = touch[numTouch++];
+		contact.actor0 = pairHeader.actors[0];
+		contact.actor1 = pairHeader.actors[1];
+		contact.pos = to_vec(pos);
+		contact.normal = to_vec(normal);
+		contact.impulse = to_vec(impulse);
+	}
+
+	void onTrigger(PxTriggerPair* pairs, PxU32 count) override
+	{
+		for(PxU32 i=0; i < count; i++)
+		{
+			if(numTrigger >= MAX_NOTIFY)
+			{
+				printf("Too many trigger events, discarding the rest\n");
+				return;
+			}
+			// ignore pairs when shapes have been deleted
+			if (pairs[i].flags & (PxTriggerPairFlag::eREMOVED_SHAPE_TRIGGER | PxTriggerPairFlag::eREMOVED_SHAPE_OTHER))
+				continue;
+
+			Trigger_State state = eNOTIFY_TOUCH_FOUND;
+			if(pairs[i].status & PxPairFlag::eNOTIFY_TOUCH_FOUND) {
+				state = eNOTIFY_TOUCH_FOUND;
+			}
+			if(pairs[i].status & PxPairFlag::eNOTIFY_TOUCH_LOST) {
+				state = eNOTIFY_TOUCH_LOST;
+			}
+			fflush(stdout);
+
+			Trigger& trigger = triggers[numTrigger++];
+			trigger.trigger = pairs[i].triggerActor;
+			trigger.otherActor = pairs[i].otherActor;
+			trigger.state = state;
+		}
+	}
+};
+
+void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
+	gAllocator = Allocator_Callback(allocator);
 	gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 
 	if(initialize_pvd) {
@@ -162,7 +309,8 @@ Scene scene_create() {
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
 	sceneDesc.cpuDispatcher	= gDispatcher;
-	sceneDesc.filterShader = PxDefaultSimulationFilterShader;
+	sceneDesc.filterShader = CollisionFilterShader;
+	sceneDesc.simulationEventCallback = new SimulationEventCallback();
 	
 	// Enable contacts between kinematic/kinematic/static actors
 	sceneDesc.kineKineFilteringMode = PxPairFilteringMode::eKEEP;
@@ -170,7 +318,6 @@ Scene scene_create() {
 
 	// Enable getActiveActors
 	sceneDesc.flags.set(PxSceneFlag::eENABLE_ACTIVE_ACTORS);
-	// sceneDesc.flags.set(PxSceneFlag::eENABLE_CCD);
 
 	PxScene* scene = gPhysics->createScene(sceneDesc);
 	
@@ -187,11 +334,20 @@ Scene scene_create() {
 
 void scene_release(Scene scene_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
+	if(scene->getSimulationEventCallback()) {
+		delete scene->getSimulationEventCallback();
+		scene->setSimulationEventCallback(nullptr);
+	}
 	scene->release();
 }
 
 void scene_simulate(Scene scene_handle, float dt) {
 	PxScene* scene = (PxScene*) scene_handle;
+
+	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
+	callback->numTouch = 0;
+	callback->numTrigger = 0;
+
 	scene->simulate(dt);
 	scene->fetchResults(true);
 }
@@ -216,6 +372,20 @@ void scene_remove_actor(Scene scene_handle, Actor actor_handle) {
 Actor* scene_get_active_actors(Scene scene_handle, uint32_t* numActorsOut) {
 	PxScene* scene = (PxScene*) scene_handle;
 	return (Actor*) scene->getActiveActors(*numActorsOut);
+}
+
+Contact* scene_get_contacts(Scene scene_handle, uint32_t* numContacts) {
+	PxScene* scene = (PxScene*) scene_handle;
+	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
+	*numContacts = (uint32_t) callback->numTouch;
+	return callback->touch;
+}
+
+Trigger* scene_get_triggers(Scene scene_handle, uint32_t* numTriggers) {
+	PxScene* scene = (PxScene*) scene_handle;
+	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
+	*numTriggers = (uint32_t) callback->numTrigger;
+	return callback->triggers;
 }
 
 Actor actor_create() {
@@ -249,7 +419,7 @@ Transform actor_get_transform(Actor actor_handle) {
 
 void actor_set_transform(Actor actor_handle, Transform transform, bool teleport) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	if(!teleport && (actor->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC))
+	if(!teleport && actor->getScene() && (actor->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC))
 	{
 		actor->setKinematicTarget(*(PxTransform*) &transform);
 	}
@@ -261,12 +431,34 @@ void actor_set_transform(Actor actor_handle, Transform transform, bool teleport)
 
 Vector3f32 actor_get_velocity(Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	return *(Vector3f32*) &actor->getLinearVelocity();
+	return to_vec(actor->getLinearVelocity());
 }
 
 void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	actor->setLinearVelocity(*(PxVec3*) &velocity);
+	actor->setLinearVelocity(to_px(velocity));
+}
+
+void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, bool trigger) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxBoxGeometry geometry;
+	geometry.halfExtents = to_px(half_extents);
+	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
+	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
+	actor->attachShape(*shape);
+	shape->release();
+}
+
+void actor_add_shape_sphere(Actor actor_handle, float radius, bool trigger) {
+	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxSphereGeometry geometry;
+	geometry.radius = radius;
+	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
+	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
+	actor->attachShape(*shape);
+	shape->release();
 }
 
 void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle) {
@@ -290,9 +482,6 @@ void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_han
 
 Buffer cook_triangle_mesh(Mesh_Description mesh_description)
 {
-	bool inserted = false;
-	bool skipMeshCleanup = false; // true for fast
-	bool skipEdgeData = false; // true for fast
 	uint32_t numTrisPerLeaf = 4; // 15 for fast
 
 	PxTriangleMeshDesc meshDesc;
@@ -307,41 +496,13 @@ Buffer cook_triangle_mesh(Mesh_Description mesh_description)
 	// meshDesc.flags.set(PxMeshFlag::eFLIPNORMALS);
 
 	PxCookingParams params = gCooking->getParams();
-
-	// Create BVH34 midphase
-	params.midphaseDesc = PxMeshMidPhase::eBVH34;
-
-	// we suppress the triangle mesh remap table computation to gain some speed, as we will not need it 
-	// in this snippet
-	params.suppressTriangleMeshRemapTable = true;
-
-	// If DISABLE_CLEAN_MESH is set, the mesh is not cleaned during the cooking. The input mesh must be valid. 
-	// The following conditions are true for a valid triangle mesh :
-	//  1. There are no duplicate vertices(within specified vertexWeldTolerance.See PxCookingParams::meshWeldTolerance)
-	//  2. There are no large triangles(within specified PxTolerancesScale.)
-	// It is recommended to run a separate validation check in debug/checked builds, see below.
-
-	if (!skipMeshCleanup)
-		params.meshPreprocessParams &= ~static_cast<PxMeshPreprocessingFlags>(PxMeshPreprocessingFlag::eDISABLE_CLEAN_MESH);
-	else
-		params.meshPreprocessParams |= PxMeshPreprocessingFlag::eDISABLE_CLEAN_MESH;
-
-	// If DISABLE_ACTIVE_EDGES_PREDOCOMPUTE is set, the cooking does not compute the active (convex) edges, and instead 
-	// marks all edges as active. This makes cooking faster but can slow down contact generation. This flag may change 
-	// the collision behavior, as all edges of the triangle mesh will now be considered active.
-	if (!skipEdgeData)
-		params.meshPreprocessParams &= ~static_cast<PxMeshPreprocessingFlags>(PxMeshPreprocessingFlag::eDISABLE_ACTIVE_EDGES_PRECOMPUTE);
-	else
-		params.meshPreprocessParams |= PxMeshPreprocessingFlag::eDISABLE_ACTIVE_EDGES_PRECOMPUTE;
-
-	// Cooking mesh with less triangles per leaf produces larger meshes with better runtime performance
-	// and worse cooking performance. Cooking time is better when more triangles per leaf are used.
 	params.midphaseDesc.mBVH34Desc.numPrimsPerLeaf = numTrisPerLeaf;
 
 	gCooking->setParams(params);
 
 	if(!gCooking->validateTriangleMesh(meshDesc)) {
 		// TODO: error result
+		printf("Error cooking trimesh\n");
 	}
 
 	DefaultMemoryOutputStream outBuffer;
@@ -359,7 +520,6 @@ Buffer cook_convex_mesh(Mesh_Description mesh_description)
 	desc.points.data = mesh_description.vertices;
 	desc.points.count = mesh_description.num_vertices;
 	desc.points.stride = mesh_description.vertex_stride;
-	// TODO: Options to pass in complete convex mesh
 	desc.flags = PxConvexFlag::eCOMPUTE_CONVEX;
 
 	DefaultMemoryOutputStream outBuffer;
@@ -406,33 +566,19 @@ void controller_manager_release(Controller_Manager controller_manager_handle) {
 	controller_manager->release();
 }
 
-Controller controller_create(Controller_Manager controller_manager_handle) {
-	// TODO: Config
-	#define CONTACT_OFFSET			0.01f
-	#define STEP_OFFSET				0.05f
-	#define SLOPE_LIMIT				0.0f
-	#define INVISIBLE_WALLS_HEIGHT	0.0f
-	#define MAX_JUMP_HEIGHT			0.0f
-	static const float gScaleFactor			= 1.5f;
-	static const float gStandingSize		= 1.0f * gScaleFactor;
-	static const float gCrouchingSize		= 0.25f * gScaleFactor;
-	static const float gControllerRadius	= 0.3f * gScaleFactor;
-
+Controller controller_create(Controller_Manager controller_manager_handle, Controller_Settings settings) {
 	PxControllerManager* controller_manager = (PxControllerManager*) controller_manager_handle;
 	PxCapsuleControllerDesc desc;
-	desc.position				= PxExtendedVec3(0,0,0);
-	desc.slopeLimit			= SLOPE_LIMIT;
-	desc.contactOffset			= CONTACT_OFFSET;
-	desc.stepOffset			= STEP_OFFSET;
-	desc.invisibleWallHeight	= INVISIBLE_WALLS_HEIGHT;
-	desc.maxJumpHeight			= MAX_JUMP_HEIGHT;
-	desc.radius				= gControllerRadius;
-	desc.height				= gStandingSize;
+	desc.position = PxExtendedVec3(0,0,0);
+	desc.slopeLimit = cosf(settings.slope_limit_deg * M_PI / 180.0f);
+	desc.contactOffset = 0.01f;
+	desc.stepOffset = 0.05f;
+	desc.invisibleWallHeight = 0.0f;
+	desc.maxJumpHeight = 0.0f;
+	desc.radius = settings.radius;
+	desc.height = settings.height;
 	desc.material = gMaterial;
-	desc.upDirection = PxVec3(0,1,0);
-	// desc.crouchHeight			= gCrouchingSize;
-	// desc.reportCallback		= this;
-	// desc.behaviorCallback		= this;
+	desc.upDirection = to_px(settings.up);
 	PxController* controller = controller_manager->createController(desc); 
 	return (Controller) controller;
 }
@@ -455,9 +601,9 @@ void controller_set_position(Controller controller_handle, Vector3f32 position) 
 	PxController* controller = (PxController*) controller_handle;
 }
 
-void controller_move(Controller controller_handle, Vector3f32 displacement, float minimum_distance, float dt) {
+void controller_move(Controller controller_handle, Vector3f32 displacement, float dt) {
 	PxController* controller = (PxController*) controller_handle;
 	PxControllerFilters filters;
-	PxVec3 disp = *(PxVec3*) &displacement;
-	controller->move(disp, minimum_distance, dt, filters);
+	PxVec3 disp = to_px(displacement);
+	controller->move(disp, 0.001f, dt, filters);
 }
