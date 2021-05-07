@@ -266,7 +266,7 @@ public:
 
 			Trigger& trigger = triggers[numTrigger++];
 			trigger.trigger = pairs[i].triggerActor;
-			trigger.otherActor = pairs[i].otherActor;
+			trigger.other_actor = pairs[i].otherActor;
 			trigger.state = state;
 		}
 	}
@@ -331,6 +331,7 @@ Scene scene_create() {
 	sceneDesc.flags.set(PxSceneFlag::eENABLE_ACTIVE_ACTORS);
 
 	PxScene* scene = gPhysics->createScene(sceneDesc);
+	scene->userData = PxCreateControllerManager(*scene);
 	
 	PxPvdSceneClient* pvdClient = scene->getScenePvdClient();
 	if(pvdClient)
@@ -345,6 +346,7 @@ Scene scene_create() {
 
 void scene_release(Scene scene_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
+	((PxControllerManager*) scene->userData)->release();
 	if(scene->getSimulationEventCallback()) {
 		delete scene->getSimulationEventCallback();
 		scene->setSimulationEventCallback(nullptr);
@@ -598,17 +600,9 @@ void convex_mesh_release(Convex_Mesh convex_mesh_handle) {
 	convex_mesh->release();
 }
 
-Controller_Manager controller_manager_create(Scene scene_handle) {
-	return (Controller_Manager) PxCreateControllerManager(*((PxScene*) scene_handle));
-}
-
-void controller_manager_release(Controller_Manager controller_manager_handle) {
-	PxControllerManager* controller_manager = (PxControllerManager*) controller_manager_handle;
-	controller_manager->release();
-}
-
-Controller controller_create(Controller_Manager controller_manager_handle, Controller_Settings settings) {
-	PxControllerManager* controller_manager = (PxControllerManager*) controller_manager_handle;
+Controller controller_create(Scene scene_handle, Controller_Settings settings) {
+	PxScene* scene = (PxScene*) scene_handle;
+	PxControllerManager* controller_manager = (PxControllerManager*) scene->userData;
 	PxCapsuleControllerDesc desc;
 	desc.position = PxExtendedVec3(0,0,0);
 	desc.slopeLimit = cosf(settings.slope_limit_deg * M_PI / 180.0f);
