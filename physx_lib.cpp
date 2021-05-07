@@ -4,6 +4,7 @@
 #include <stdio.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <assert.h>
 
 #define PVD_HOST "127.0.0.1"	//Set this to the IP address of the system running the PhysX Visual Debugger that you want to connect to.
 
@@ -38,11 +39,11 @@ public:
 	}
 
 	virtual void* allocate(size_t size, const char* type_name, const char* filename, int line) override {
-		return allocator.allocate_16_byte_aligned(allocator.user_data, size);
+		return allocator.allocate_16_byte_aligned(&allocator, size);
 	}
 
 	virtual void deallocate(void* ptr) {
-		allocator.deallocate(allocator.user_data, ptr);
+		allocator.deallocate(&allocator, ptr);
 	}
 
 	Allocator allocator;
@@ -146,24 +147,33 @@ private:
 	PxU32		mPos;
 };
 
+#define NUM_GROUPS 64
+typedef uint64_t Collision_Masks[NUM_GROUPS];
+Collision_Masks collision_masks;
+
 PxFilterFlags CollisionFilterShader(
     PxFilterObjectAttributes attributes0, PxFilterData filterData0,
     PxFilterObjectAttributes attributes1, PxFilterData filterData1,
     PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
 {
-    // let triggers through
-    if(PxFilterObjectIsTrigger(attributes0) || PxFilterObjectIsTrigger(attributes1))
-    {
-        pairFlags = PxPairFlag::eTRIGGER_DEFAULT;
-        return PxFilterFlag::eDEFAULT;
-    }
-    // generate contacts for all that were not filtered above
-    pairFlags = PxPairFlag::eCONTACT_DEFAULT;
+	// TODO: for per scene masks
+	// collision_masks *(Collision_Masks const&) constantBlock;
 
-	// TODO: Setup touch/not etc?
-    // if((filterData0.word0 & filterData1.word1) && (filterData1.word0 & filterData0.word1))
-        pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
-        pairFlags |= PxPairFlag::eNOTIFY_CONTACT_POINTS;
+	if(((1 << filterData0.word0) & collision_masks[filterData1.word1]) != 0 ||
+		((1 << filterData1.word0) & collision_masks[filterData0.word1]) != 0) {
+
+		if(PxFilterObjectIsTrigger(attributes0) || PxFilterObjectIsTrigger(attributes1)) {
+			pairFlags = PxPairFlag::eTRIGGER_DEFAULT;
+		}
+		else {
+			pairFlags = PxPairFlag::eCONTACT_DEFAULT;
+			pairFlags |= PxPairFlag::eNOTIFY_TOUCH_FOUND;
+			pairFlags |= PxPairFlag::eNOTIFY_CONTACT_POINTS;
+		}
+	}
+	else {
+		return PxFilterFlag::eSUPPRESS;
+	}
 
     return PxFilterFlag::eDEFAULT;
 }
@@ -284,6 +294,11 @@ void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
 
 	// TODO: Material support
 	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
+
+	for(int i = 0; i < NUM_GROUPS; ++i) {
+		// Collide against all groups by Default
+		collision_masks[i] = UINT64_MAX;
+	}
 }
 
 void destroy() {
@@ -341,14 +356,14 @@ void scene_release(Scene scene_handle) {
 	scene->release();
 }
 
-void scene_simulate(Scene scene_handle, float dt) {
+void scene_simulate(Scene scene_handle, float dt, void* scratch_memory_16_byte_aligned, size_t scratch_size) {
 	PxScene* scene = (PxScene*) scene_handle;
 
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
 	callback->numTouch = 0;
 	callback->numTrigger = 0;
 
-	scene->simulate(dt);
+	scene->simulate(dt, nullptr, scratch_memory_16_byte_aligned, scratch_size);
 	scene->fetchResults(true);
 }
 
@@ -386,6 +401,12 @@ Trigger* scene_get_triggers(Scene scene_handle, uint32_t* numTriggers) {
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
 	*numTriggers = (uint32_t) callback->numTrigger;
 	return callback->triggers;
+}
+
+void scene_set_collision_mask(Scene scene_handle, int mask_index, uint64_t mask) {
+	if(mask_index >= 0 && mask_index < NUM_GROUPS) {
+		collision_masks[mask_index] = mask;
+	}
 }
 
 Actor actor_create() {
@@ -439,7 +460,7 @@ void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
 	actor->setLinearVelocity(to_px(velocity));
 }
 
-void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, bool trigger) {
+void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, int shape_layer_index, int mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxBoxGeometry geometry;
 	geometry.halfExtents = to_px(half_extents);
@@ -447,10 +468,13 @@ void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, bool trigg
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
 	actor->attachShape(*shape);
+	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
+	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
 	shape->release();
+	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_sphere(Actor actor_handle, float radius, bool trigger) {
+void actor_add_shape_sphere(Actor actor_handle, float radius, int shape_layer_index, int mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxSphereGeometry geometry;
 	geometry.radius = radius;
@@ -458,24 +482,32 @@ void actor_add_shape_sphere(Actor actor_handle, float radius, bool trigger) {
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
 	actor->attachShape(*shape);
+	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
+	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
 	shape->release();
+	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle) {
+void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, int shape_layer_index, int mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxTriangleMeshGeometry geometry;
 	geometry.triangleMesh = (PxTriangleMesh*) triangle_mesh_handle;
 	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
 	actor->attachShape(*shape);
+	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
+	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
 	shape->release();
+	// Note - no mass/inertia update. Trimeshes can't be used for simulation
 }
 
-void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle) {
+void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, int shape_layer_index, int mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxConvexMeshGeometry geometry;
 	geometry.convexMesh = (PxConvexMesh*) convex_mesh_handle;
 	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
 	actor->attachShape(*shape);
+	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
+	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
 	shape->release();
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
@@ -580,6 +612,11 @@ Controller controller_create(Controller_Manager controller_manager_handle, Contr
 	desc.material = gMaterial;
 	desc.upDirection = to_px(settings.up);
 	PxController* controller = controller_manager->createController(desc); 
+	PxShape* shape = nullptr;
+	assert(controller->getActor()->getNbShapes() == 1);
+	controller->getActor()->getShapes(&shape, 1);
+	shape->setSimulationFilterData(PxFilterData(settings.shape_layer_index, settings.mask_index, 0, 13));
+	shape->setQueryFilterData(PxFilterData(1 << settings.shape_layer_index, 0, 0, 13));
 	return (Controller) controller;
 }
 
@@ -601,9 +638,11 @@ void controller_set_position(Controller controller_handle, Vector3f32 position) 
 	PxController* controller = (PxController*) controller_handle;
 }
 
-void controller_move(Controller controller_handle, Vector3f32 displacement, float dt) {
+void controller_move(Controller controller_handle, Vector3f32 displacement, float dt, int mask_index) {
 	PxController* controller = (PxController*) controller_handle;
+	PxFilterData filter_data(collision_masks[mask_index], 0, 0, 0);
 	PxControllerFilters filters;
+	filters.mFilterData = &filter_data;
 	PxVec3 disp = to_px(displacement);
 	controller->move(disp, 0.001f, dt, filters);
 }

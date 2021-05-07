@@ -24,8 +24,8 @@ typedef void* Controller_Manager;
 typedef void* Controller;
 
 struct Allocator {
-	void* (*allocate_16_byte_aligned)(void* user_data, size_t size);
-	void (*deallocate)(void* user_data, void* ptr);
+	void* (*allocate_16_byte_aligned)(Allocator* allocator, size_t size);
+	void (*deallocate)(Allocator* allocator, void* ptr);
 	void* user_data;
 };
 
@@ -67,6 +67,8 @@ struct Controller_Settings {
 	float height;
 	float radius;
 	Vector3f32 up;
+	int shape_layer_index;
+	int mask_index;
 };
 
 extern "C" {
@@ -75,13 +77,14 @@ extern "C" {
 
 	Scene scene_create();
 	void scene_release(Scene scene);
-	void scene_simulate(Scene scene, float dt);
+	void scene_simulate(Scene scene, float dt, void* scratch_memory_16_byte_aligned, size_t scratch_size);
 	void scene_set_gravity(Scene scene, Vector3f32 gravity);
 	void scene_add_actor(Scene scene, Actor actor);
 	void scene_remove_actor(Scene scene, Actor actor);
 	Actor* scene_get_active_actors(Scene scene, uint32_t* numActorsOut);
 	Contact* scene_get_contacts(Scene scene, uint32_t* numContacts);
 	Trigger* scene_get_triggers(Scene scene, uint32_t* numContacts);
+	void scene_set_collision_mask(Scene scene, int mask_index, uint64_t layer_mask);
 
 	Actor actor_create();
 	void actor_release(Actor actor);
@@ -92,11 +95,10 @@ extern "C" {
 	void actor_set_transform(Actor actor, Transform transform, bool teleport = false);
 	Vector3f32 actor_get_velocity(Actor actor);
 	void actor_set_velocity(Actor actor, Vector3f32 velocity);
-	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, bool trigger);
-	void actor_add_shape_sphere(Actor actor, float radius, bool trigger);
-	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh);
-	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh);
-	// TODO: Add angular/force/torque
+	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, int shape_layer_index, int mask_index, bool trigger);
+	void actor_add_shape_sphere(Actor actor, float radius, int shape_layer_index, int mask_index, bool trigger);
+	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh, int shape_layer_index, int mask_index);
+	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh, int shape_layer_index, int mask_index);
 
 	Buffer cook_triangle_mesh(Mesh_Description mesh_description);
 	Buffer cook_convex_mesh(Mesh_Description mesh_description);
@@ -112,5 +114,9 @@ extern "C" {
 	void controller_release(Controller controller);
 	Vector3f32 controller_get_position(Controller controller);
 	void controller_set_position(Controller controller, Vector3f32 position);
-	void controller_move(Controller controller, Vector3f32 displacement, float dt);
+	void controller_move(Controller controller, Vector3f32 displacement, float dt, int mask_index);
+
+
+	// Ray/geometry casts
+	//
 }

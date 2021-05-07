@@ -18,14 +18,14 @@ Controller_Manager :: distinct rawptr;
 Controller :: distinct rawptr;
 
 Allocator :: struct {
-	allocate_16_byte_aligned : #type proc "c" (user_data : rawptr, size : uint) -> rawptr,
-	deallocate : #type proc "c" (user_data : rawptr, ptr : rawptr),
+	allocate_16_byte_aligned : #type proc "c" (allocator : ^Allocator, size : u32) -> rawptr,
+	deallocate : #type proc "c" (allocator : ^Allocator, ptr : rawptr),
 	user_data : rawptr,
 };
 
 Buffer :: struct {
 	data : rawptr,
-	size : uint,
+	size : u32,
 }
 
 Mesh_Description :: struct {
@@ -61,6 +61,8 @@ Controller_Settings :: struct {
 	height : f32,
 	radius : f32,
 	up : linalg.Vector3f32,
+	shape_layer_index : i32,
+	mask_index : i32,
 };
 
 @(default_calling_convention="c")
@@ -70,13 +72,14 @@ foreign physx {
 
 	scene_create :: proc() -> Scene ---;
 	scene_release :: proc(scene : Scene) ---;
-	scene_simulate :: proc(scene : Scene, dt : f32) ---;
+	scene_simulate :: proc(scene : Scene, dt : f32, scratch_memory_16_byte_aligned : rawptr = nil, scratch_size : u32 = 0) ---;
 	scene_set_gravity :: proc(scene : Scene, gravity : linalg.Vector3f32) ---;
 	scene_add_actor :: proc(scene : Scene, actor : Actor) ---;
 	scene_remove_actor :: proc(scene : Scene, actor : Actor) ---;
     @(link_name="scene_get_active_actors") _scene_get_active_actors :: proc(scene : Scene, num_active : ^u32) -> ^Actor ---;
 	@(link_name="scene_get_contacts") _scene_get_contacts :: proc(scene : Scene, numContacts : ^u32) -> ^Contact ---;
 	@(link_name="scene_get_triggers") _scene_get_triggers :: proc(scene : Scene, numTriggers : ^u32) -> ^Trigger ---;
+	scene_set_collision_mask :: proc(scene : Scene, mask_index : i32, layer_mask : u64) ---;
 
 	actor_create :: proc() -> Actor ---;
 	actor_release :: proc(actor : Actor) ---;
@@ -87,10 +90,10 @@ foreign physx {
 	actor_set_transform :: proc(actor : Actor, transform : Transform, teleport := false) ---;
 	actor_get_velocity :: proc(actor : Actor) -> linalg.Vector3f32 ---;
 	actor_set_velocity :: proc(actor : Actor, linear_velocity : linalg.Vector3f32) ---;
-	actor_add_shape_box :: proc(actor : Actor, half_extents : linalg.Vector3f32, trigger : bool) ---;
-	actor_add_shape_sphere :: proc(actor : Actor, radius : f32, trigger : bool) ---;
-	actor_add_shape_triangle_mesh :: proc(actor : Actor, triangle_mesh : Triangle_Mesh) ---;
-	actor_add_shape_convex_mesh :: proc(actor : Actor, convex_mesh : Convex_Mesh) ---;
+	actor_add_shape_box :: proc(actor : Actor, half_extents : linalg.Vector3f32, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
+	actor_add_shape_sphere :: proc(actor : Actor, radius : f32, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
+	actor_add_shape_triangle_mesh :: proc(actor : Actor, triangle_mesh : Triangle_Mesh, shape_layer_index : i32, mask_index : i32) ---;
+	actor_add_shape_convex_mesh :: proc(actor : Actor, convex_mesh : Convex_Mesh, shape_layer_index : i32, mask_index : i32) ---;
 
 	cook_triangle_mesh :: proc(mesh_description : Mesh_Description) -> Buffer ---;
 	cook_convex_mesh :: proc(mesh_description : Mesh_Description) -> Buffer ---;
@@ -107,13 +110,13 @@ foreign physx {
 	controller_release :: proc(controller : Controller) ---;
 	controller_get_position :: proc(controller : Controller) -> linalg.Vector3f32 ---;
 	controller_set_position :: proc(controller : Controller, position : linalg.Vector3f32) ---;
-	controller_move :: proc(controller : Controller, displacement : linalg.Vector3f32, dt : f32) ---;
+	controller_move :: proc(controller : Controller, displacement : linalg.Vector3f32, dt : f32, mask_index : i32) ---;
 }
 
 scene_get_active_actors :: proc(scene : Scene) -> []Actor {
-	num_active : u32;
-	actors := _scene_get_active_actors(scene, &num_active);
-	return mem.slice_ptr(actors, cast(int) num_active);
+	num : u32;
+	result := _scene_get_active_actors(scene, &num);
+	return mem.slice_ptr(result, cast(int) num);
 }
 
 scene_get_contacts :: proc(scene : Scene) -> []Contact {
