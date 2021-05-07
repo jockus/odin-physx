@@ -58,7 +58,7 @@ enum Trigger_State {
 
 struct Trigger {
 	Actor trigger;
-	Actor otherActor;
+	Actor other_actor;
 	Trigger_State state;
 };
 
@@ -114,9 +114,7 @@ extern "C" {
 	Convex_Mesh convex_mesh_create(Buffer buffer);
 	void convex_mesh_release(Convex_Mesh convex_mesh);
 
-	Controller_Manager controller_manager_create(Scene scene);
-	void controller_manager_release(Controller_Manager controller_manager);
-	Controller controller_create(Controller_Manager controller_manager, Controller_Settings settings);
+	Controller controller_create(Scene scene, Controller_Settings settings);
 	void controller_release(Controller controller);
 	Vector3f32 controller_get_position(Controller controller);
 	void controller_set_position(Controller controller, Vector3f32 position);

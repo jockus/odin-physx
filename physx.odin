@@ -53,7 +53,7 @@ Trigger_State :: enum i32 {
 
 Trigger :: struct {
 	trigger : Actor,
-	otherActor : Actor,
+	other_actor : Actor,
 	state : Trigger_State,
 };
 
@@ -69,7 +69,7 @@ Controller_Settings :: struct {
 
 @(default_calling_convention="c")
 foreign physx {
-	init :: proc(allocator : Allocator, initialize_cooking, initialize_pvd : bool) ---;
+	init :: proc(allocator : Allocator, initialize_cooking : bool, initialize_pvd : bool) ---;
 	destroy :: proc() ---;
 
 	scene_create :: proc() -> Scene ---;
@@ -109,9 +109,7 @@ foreign physx {
 	convex_mesh_create :: proc(buffer : Buffer) -> Convex_Mesh ---;
 	convex_mesh_release :: proc(convex_mesh : Convex_Mesh) ---;
 
-	controller_manager_create :: proc(scene : Scene) -> Controller_Manager ---;
-	controller_manager_release :: proc(controller_manager : Controller_Manager) ---;
-	controller_create :: proc(controller_manager : Controller_Manager, controller_settings : Controller_Settings) -> Controller ---;
+	controller_create :: proc(scene : Scene, controller_settings : Controller_Settings) -> Controller ---;
 	controller_release :: proc(controller : Controller) ---;
 	controller_get_position :: proc(controller : Controller) -> linalg.Vector3f32 ---;
 	controller_set_position :: proc(controller : Controller, position : linalg.Vector3f32) ---;
