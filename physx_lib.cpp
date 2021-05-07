@@ -14,7 +14,6 @@ PxDefaultErrorCallback gErrorCallback;
 PxFoundation* gFoundation = nullptr;
 PxPhysics* gPhysics	= nullptr;
 PxDefaultCpuDispatcher* gDispatcher = nullptr;
-PxMaterial* gMaterial = nullptr;
 PxPvd* gPvd = nullptr;
 PxCooking* gCooking	= nullptr;
 
@@ -292,9 +291,6 @@ void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
 
 	gDispatcher = PxDefaultCpuDispatcherCreate(4);
 
-	// TODO: Material support
-	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
-
 	for(int i = 0; i < NUM_GROUPS; ++i) {
 		// Collide against all groups by Default
 		collision_masks[i] = UINT64_MAX;
@@ -409,6 +405,15 @@ void scene_set_collision_mask(Scene scene_handle, int mask_index, uint64_t mask)
 	}
 }
 
+Material material_create(float static_friction, float dynamic_friction, float restitution) {
+	return (Material) gPhysics->createMaterial(static_friction, dynamic_friction, restitution);
+}
+
+void material_release(Material material_handle) {
+	PxMaterial* material = (PxMaterial*) material_handle;
+	material->release();
+}
+
 Actor actor_create() {
 	return (Actor) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
 }
@@ -460,11 +465,12 @@ void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
 	actor->setLinearVelocity(to_px(velocity));
 }
 
-void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, int shape_layer_index, int mask_index, bool trigger) {
+void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material material_handle, int shape_layer_index, int mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxMaterial* material = (PxMaterial*) material_handle;
 	PxBoxGeometry geometry;
 	geometry.halfExtents = to_px(half_extents);
-	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, true);
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
 	actor->attachShape(*shape);
@@ -474,11 +480,12 @@ void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, int shape_
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_sphere(Actor actor_handle, float radius, int shape_layer_index, int mask_index, bool trigger) {
+void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_handle, int shape_layer_index, int mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxMaterial* material = (PxMaterial*) material_handle;
 	PxSphereGeometry geometry;
 	geometry.radius = radius;
-	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, true);
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
 	actor->attachShape(*shape);
@@ -488,11 +495,12 @@ void actor_add_shape_sphere(Actor actor_handle, float radius, int shape_layer_in
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, int shape_layer_index, int mask_index) {
+void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, Material material_handle, int shape_layer_index, int mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxMaterial* material = (PxMaterial*) material_handle;
 	PxTriangleMeshGeometry geometry;
 	geometry.triangleMesh = (PxTriangleMesh*) triangle_mesh_handle;
-	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, true);
 	actor->attachShape(*shape);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
@@ -500,11 +508,12 @@ void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_me
 	// Note - no mass/inertia update. Trimeshes can't be used for simulation
 }
 
-void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, int shape_layer_index, int mask_index) {
+void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, Material material_handle, int shape_layer_index, int mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
+	PxMaterial* material = (PxMaterial*) material_handle;
 	PxConvexMeshGeometry geometry;
 	geometry.convexMesh = (PxConvexMesh*) convex_mesh_handle;
-	PxShape* shape = gPhysics->createShape(geometry, *gMaterial, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, true);
 	actor->attachShape(*shape);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
@@ -609,14 +618,14 @@ Controller controller_create(Controller_Manager controller_manager_handle, Contr
 	desc.maxJumpHeight = 0.0f;
 	desc.radius = settings.radius;
 	desc.height = settings.height;
-	desc.material = gMaterial;
+	desc.material = (PxMaterial*) settings.material;
 	desc.upDirection = to_px(settings.up);
 	PxController* controller = controller_manager->createController(desc); 
 	PxShape* shape = nullptr;
 	assert(controller->getActor()->getNbShapes() == 1);
 	controller->getActor()->getShapes(&shape, 1);
 	shape->setSimulationFilterData(PxFilterData(settings.shape_layer_index, settings.mask_index, 0, 13));
-	shape->setQueryFilterData(PxFilterData(1 << settings.shape_layer_index, 0, 0, 13));
+	shape->setQueryFilterData(PxFilterData(1 << settings.shape_layer_index, 0, 0, 0));
 	return (Controller) controller;
 }
 

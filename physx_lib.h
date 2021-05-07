@@ -14,8 +14,8 @@ struct Transform {
 	Vector3f32 p;
 };
 
-
 typedef void* Scene;
+typedef void* Material;
 typedef void* Actor;
 typedef void* Triangle_Mesh;
 typedef void* Convex_Mesh;
@@ -69,6 +69,7 @@ struct Controller_Settings {
 	Vector3f32 up;
 	int shape_layer_index;
 	int mask_index;
+	Material material;
 };
 
 extern "C" {
@@ -86,6 +87,9 @@ extern "C" {
 	Trigger* scene_get_triggers(Scene scene, uint32_t* numContacts);
 	void scene_set_collision_mask(Scene scene, int mask_index, uint64_t layer_mask);
 
+	Material material_create(float static_friction, float dynamic_friction, float restitution);
+	void material_release(Material material);
+
 	Actor actor_create();
 	void actor_release(Actor actor);
 	void* actor_get_user_data(Actor actor);
@@ -95,14 +99,16 @@ extern "C" {
 	void actor_set_transform(Actor actor, Transform transform, bool teleport = false);
 	Vector3f32 actor_get_velocity(Actor actor);
 	void actor_set_velocity(Actor actor, Vector3f32 velocity);
-	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, int shape_layer_index, int mask_index, bool trigger);
-	void actor_add_shape_sphere(Actor actor, float radius, int shape_layer_index, int mask_index, bool trigger);
-	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh, int shape_layer_index, int mask_index);
-	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh, int shape_layer_index, int mask_index);
+
+	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, Material material, int shape_layer_index, int mask_index, bool trigger);
+	void actor_add_shape_sphere(Actor actor, float radius, Material material, int shape_layer_index, int mask_index, bool trigger);
+	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh, Material material, int shape_layer_index, int mask_index);
+	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh, Material material, int shape_layer_index, int mask_index);
 
 	Buffer cook_triangle_mesh(Mesh_Description mesh_description);
 	Buffer cook_convex_mesh(Mesh_Description mesh_description);
 	void buffer_free(Buffer buffer);
+
 	Triangle_Mesh triangle_mesh_create(Buffer buffer);
 	void triangle_mesh_release(Triangle_Mesh triangle_mesh);
 	Convex_Mesh convex_mesh_create(Buffer buffer);
@@ -118,5 +124,6 @@ extern "C" {
 
 
 	// Ray/geometry casts
-	//
+	
+	// Constraints
 }

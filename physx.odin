@@ -11,6 +11,7 @@ Transform :: struct {
 }
 
 Scene :: distinct rawptr;
+Material :: distinct rawptr;
 Actor :: distinct rawptr;
 Triangle_Mesh :: distinct rawptr;
 Convex_Mesh :: distinct rawptr;
@@ -18,14 +19,14 @@ Controller_Manager :: distinct rawptr;
 Controller :: distinct rawptr;
 
 Allocator :: struct {
-	allocate_16_byte_aligned : #type proc "c" (allocator : ^Allocator, size : u32) -> rawptr,
+	allocate_16_byte_aligned : #type proc "c" (allocator : ^Allocator, size : u64) -> rawptr,
 	deallocate : #type proc "c" (allocator : ^Allocator, ptr : rawptr),
 	user_data : rawptr,
 };
 
 Buffer :: struct {
 	data : rawptr,
-	size : u32,
+	size : u64,
 }
 
 Mesh_Description :: struct {
@@ -63,6 +64,7 @@ Controller_Settings :: struct {
 	up : linalg.Vector3f32,
 	shape_layer_index : i32,
 	mask_index : i32,
+	material : Material,
 };
 
 @(default_calling_convention="c")
@@ -72,7 +74,7 @@ foreign physx {
 
 	scene_create :: proc() -> Scene ---;
 	scene_release :: proc(scene : Scene) ---;
-	scene_simulate :: proc(scene : Scene, dt : f32, scratch_memory_16_byte_aligned : rawptr = nil, scratch_size : u32 = 0) ---;
+	scene_simulate :: proc(scene : Scene, dt : f32, scratch_memory_16_byte_aligned : rawptr = nil, scratch_size : u64 = 0) ---;
 	scene_set_gravity :: proc(scene : Scene, gravity : linalg.Vector3f32) ---;
 	scene_add_actor :: proc(scene : Scene, actor : Actor) ---;
 	scene_remove_actor :: proc(scene : Scene, actor : Actor) ---;
@@ -80,6 +82,9 @@ foreign physx {
 	@(link_name="scene_get_contacts") _scene_get_contacts :: proc(scene : Scene, numContacts : ^u32) -> ^Contact ---;
 	@(link_name="scene_get_triggers") _scene_get_triggers :: proc(scene : Scene, numTriggers : ^u32) -> ^Trigger ---;
 	scene_set_collision_mask :: proc(scene : Scene, mask_index : i32, layer_mask : u64) ---;
+
+	material_create :: proc(static_friction : f32, dynamic_friction : f32, restitution : f32) -> Material ---;
+	material_release ::proc(material : Material) ---;
 
 	actor_create :: proc() -> Actor ---;
 	actor_release :: proc(actor : Actor) ---;
@@ -90,10 +95,10 @@ foreign physx {
 	actor_set_transform :: proc(actor : Actor, transform : Transform, teleport := false) ---;
 	actor_get_velocity :: proc(actor : Actor) -> linalg.Vector3f32 ---;
 	actor_set_velocity :: proc(actor : Actor, linear_velocity : linalg.Vector3f32) ---;
-	actor_add_shape_box :: proc(actor : Actor, half_extents : linalg.Vector3f32, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
-	actor_add_shape_sphere :: proc(actor : Actor, radius : f32, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
-	actor_add_shape_triangle_mesh :: proc(actor : Actor, triangle_mesh : Triangle_Mesh, shape_layer_index : i32, mask_index : i32) ---;
-	actor_add_shape_convex_mesh :: proc(actor : Actor, convex_mesh : Convex_Mesh, shape_layer_index : i32, mask_index : i32) ---;
+	actor_add_shape_box :: proc(actor : Actor, half_extents : linalg.Vector3f32, material : Material, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
+	actor_add_shape_sphere :: proc(actor : Actor, radius : f32, material : Material, shape_layer_index : i32, mask_index : i32, trigger : bool) ---;
+	actor_add_shape_triangle_mesh :: proc(actor : Actor, triangle_mesh : Triangle_Mesh, material : Material, shape_layer_index : i32, mask_index : i32) ---;
+	actor_add_shape_convex_mesh :: proc(actor : Actor, convex_mesh : Convex_Mesh, material : Material, shape_layer_index : i32, mask_index : i32) ---;
 
 	cook_triangle_mesh :: proc(mesh_description : Mesh_Description) -> Buffer ---;
 	cook_convex_mesh :: proc(mesh_description : Mesh_Description) -> Buffer ---;
