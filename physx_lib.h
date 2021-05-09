@@ -62,6 +62,12 @@ struct Trigger {
 	Trigger_State state;
 };
 
+struct Query_Hit {
+	bool hit;
+	Vector3f32 pos;
+	Vector3f32 normal;
+};
+
 struct Controller_Settings {
 	float slope_limit_deg;
 	float height;
@@ -82,10 +88,11 @@ extern "C" {
 	void scene_set_gravity(Scene scene, Vector3f32 gravity);
 	void scene_add_actor(Scene scene, Actor actor);
 	void scene_remove_actor(Scene scene, Actor actor);
-	Actor* scene_get_active_actors(Scene scene, uint32_t* numActorsOut);
-	Contact* scene_get_contacts(Scene scene, uint32_t* numContacts);
-	Trigger* scene_get_triggers(Scene scene, uint32_t* numContacts);
+	Actor* scene_get_active_actors(Scene scene, uint32_t* num_actors);
+	Contact* scene_get_contacts(Scene scene, uint32_t* num_contacts);
+	Trigger* scene_get_triggers(Scene scene, uint32_t* num_contacts);
 	void scene_set_collision_mask(Scene scene, int mask_index, uint64_t layer_mask);
+	Query_Hit scene_raycast(Scene scene, Vector3f32 origin, Vector3f32 direction, float distance, int mask_index);
 
 	Material material_create(float static_friction, float dynamic_friction, float restitution);
 	void material_release(Material material);
@@ -121,7 +128,6 @@ extern "C" {
 	void controller_move(Controller controller, Vector3f32 displacement, float dt, int mask_index);
 
 
-	// Ray/geometry casts
 	
 	// Constraints
 }

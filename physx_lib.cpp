@@ -407,6 +407,19 @@ void scene_set_collision_mask(Scene scene_handle, int mask_index, uint64_t mask)
 	}
 }
 
+Query_Hit scene_raycast(Scene scene_handle, Vector3f32 origin, Vector3f32 direction, float distance, int mask_index) {
+	PxScene* scene = (PxScene*) scene_handle;
+	PxRaycastBuffer raycast_buffer;
+	PxQueryFilterData query_filter_data;
+	query_filter_data.data.word0 = collision_masks[mask_index];
+	scene->raycast(to_px(origin), to_px(direction), distance, raycast_buffer, PxHitFlags(PxHitFlag::eDEFAULT), query_filter_data);
+	Query_Hit result;
+	result.hit = raycast_buffer.hasBlock;
+	result.pos = result.hit ? to_vec(raycast_buffer.block.position) : Vector3f32{0,0,0};
+	result.normal = result.hit ? to_vec(raycast_buffer.block.normal) : Vector3f32{0,0,0};
+	return result;
+}
+
 Material material_create(float static_friction, float dynamic_friction, float restitution) {
 	return (Material) gPhysics->createMaterial(static_friction, dynamic_friction, restitution);
 }

@@ -48,7 +48,7 @@ Contact :: struct {
 
 Trigger_State :: enum i32 {
 	eNOTIFY_TOUCH_FOUND,
-	eNOTIFY_TOUCH_LOST
+	eNOTIFY_TOUCH_LOST,
 };
 
 Trigger :: struct {
@@ -56,6 +56,13 @@ Trigger :: struct {
 	other_actor : Actor,
 	state : Trigger_State,
 };
+
+Query_Hit :: struct {
+	hit : bool,
+	pos : linalg.Vector3f32,
+	normal : linalg.Vector3f32,
+};
+
 
 Controller_Settings :: struct {
 	slope_limit_deg : f32,
@@ -82,6 +89,7 @@ foreign physx {
 	@(link_name="scene_get_contacts") _scene_get_contacts :: proc(scene : Scene, numContacts : ^u32) -> ^Contact ---;
 	@(link_name="scene_get_triggers") _scene_get_triggers :: proc(scene : Scene, numTriggers : ^u32) -> ^Trigger ---;
 	scene_set_collision_mask :: proc(scene : Scene, mask_index : i32, layer_mask : u64) ---;
+	scene_raycast :: proc(scene : Scene, origin : linalg.Vector3f32, direction : linalg.Vector3f32, distance : f32, mask_index : i32) -> Query_Hit ---;
 
 	material_create :: proc(static_friction : f32, dynamic_friction : f32, restitution : f32) -> Material ---;
 	material_release ::proc(material : Material) ---;
