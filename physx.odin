@@ -86,8 +86,8 @@ foreign physx {
 	scene_add_actor :: proc(scene : Scene, actor : Actor) ---;
 	scene_remove_actor :: proc(scene : Scene, actor : Actor) ---;
     @(link_name="scene_get_active_actors") _scene_get_active_actors :: proc(scene : Scene, num_active : ^u32) -> ^Actor ---;
-	@(link_name="scene_get_contacts") _scene_get_contacts :: proc(scene : Scene, numContacts : ^u32) -> ^Contact ---;
-	@(link_name="scene_get_triggers") _scene_get_triggers :: proc(scene : Scene, numTriggers : ^u32) -> ^Trigger ---;
+	@(link_name="scene_get_contacts") _scene_get_contacts :: proc(scene : Scene, num_contacts : ^u32) -> ^Contact ---;
+	@(link_name="scene_get_triggers") _scene_get_triggers :: proc(scene : Scene, num_triggers : ^u32) -> ^Trigger ---;
 	scene_set_collision_mask :: proc(scene : Scene, mask_index : i32, layer_mask : u64) ---;
 	scene_raycast :: proc(scene : Scene, origin : linalg.Vector3f32, direction : linalg.Vector3f32, distance : f32, mask_index : i32) -> Query_Hit ---;
 

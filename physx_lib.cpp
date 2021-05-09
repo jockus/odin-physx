@@ -382,22 +382,22 @@ void scene_remove_actor(Scene scene_handle, Actor actor_handle) {
 	scene->removeActor(*actor);
 }
 
-Actor* scene_get_active_actors(Scene scene_handle, uint32_t* numActorsOut) {
+Actor* scene_get_active_actors(Scene scene_handle, uint32_t* num_actors) {
 	PxScene* scene = (PxScene*) scene_handle;
-	return (Actor*) scene->getActiveActors(*numActorsOut);
+	return (Actor*) scene->getActiveActors(*num_actors);
 }
 
-Contact* scene_get_contacts(Scene scene_handle, uint32_t* numContacts) {
+Contact* scene_get_contacts(Scene scene_handle, uint32_t* num_contacts) {
 	PxScene* scene = (PxScene*) scene_handle;
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
-	*numContacts = (uint32_t) callback->numTouch;
+	*num_contacts = (uint32_t) callback->numTouch;
 	return callback->touch;
 }
 
-Trigger* scene_get_triggers(Scene scene_handle, uint32_t* numTriggers) {
+Trigger* scene_get_triggers(Scene scene_handle, uint32_t* num_triggers) {
 	PxScene* scene = (PxScene*) scene_handle;
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
-	*numTriggers = (uint32_t) callback->numTrigger;
+	*num_triggers = (uint32_t) callback->numTrigger;
 	return callback->triggers;
 }
 
