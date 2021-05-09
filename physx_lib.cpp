@@ -414,9 +414,9 @@ Query_Hit scene_raycast(Scene scene_handle, Vector3f32 origin, Vector3f32 direct
 	query_filter_data.data.word0 = collision_masks[mask_index];
 	scene->raycast(to_px(origin), to_px(direction), distance, raycast_buffer, PxHitFlags(PxHitFlag::eDEFAULT), query_filter_data);
 	Query_Hit result;
-	result.hit = raycast_buffer.hasBlock;
-	result.pos = result.hit ? to_vec(raycast_buffer.block.position) : Vector3f32{0,0,0};
-	result.normal = result.hit ? to_vec(raycast_buffer.block.normal) : Vector3f32{0,0,0};
+	result.valid = raycast_buffer.hasBlock;
+	result.pos = result.valid ? to_vec(raycast_buffer.block.position) : Vector3f32{0,0,0};
+	result.normal = result.valid ? to_vec(raycast_buffer.block.normal) : Vector3f32{0,0,0};
 	return result;
 }
 

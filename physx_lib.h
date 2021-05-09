@@ -1,18 +1,28 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // Same layout as PxVec3 and linalg.Vector3f32
-struct Vector3f32 { float data[3]; };
+typedef struct Vector3f32 {
+	float x;
+	float y;
+	float z;
+} Vector3f32;
 
 // Same layout as PxQuat and linalg.Quaternionf32
-struct Quaternionf32 { float data[4]; };
+typedef struct Quaternionf32 {
+	float x;
+	float y;
+	float z;
+	float w;
+} Quaternionf32;
 
 // Same layout as PxTransform
-struct Transform {
+typedef struct Transform {
 	Quaternionf32 q;
 	Vector3f32 p;
-};
+} Transform;
 
 typedef void* Scene;
 typedef void* Material;
@@ -20,55 +30,54 @@ typedef void* Actor;
 typedef void* Triangle_Mesh;
 typedef void* Convex_Mesh;
 typedef void* Shape;
-typedef void* Controller_Manager;
 typedef void* Controller;
 
-struct Allocator {
-	void* (*allocate_16_byte_aligned)(Allocator* allocator, size_t size);
-	void (*deallocate)(Allocator* allocator, void* ptr);
+typedef struct Allocator {
+	void* (*allocate_16_byte_aligned)(struct Allocator* allocator, size_t size);
+	void (*deallocate)(struct Allocator* allocator, void* ptr);
 	void* user_data;
-};
+} Allocator;
 
-struct Buffer {
+typedef struct Buffer {
 	void* data;
 	size_t size;
-};
+} Buffer;
 
-struct Mesh_Description {
+typedef struct Mesh_Description {
 	Vector3f32* vertices;
 	uint32_t num_vertices;
 	uint32_t vertex_stride;
 	uint32_t* indices;
 	uint32_t num_triangles;
 	uint32_t triangle_stride;
-};
+} Mesh_Description;
 
-struct Contact {
+typedef struct Contact {
 	Actor actor0;
 	Actor actor1;
 	Vector3f32 pos;
 	Vector3f32 normal;
 	Vector3f32 impulse;
-};
+} Contact;
 
-enum Trigger_State {
+typedef enum Trigger_State {
 	eNOTIFY_TOUCH_FOUND,
 	eNOTIFY_TOUCH_LOST
-};
+} Trigger_State;
 
-struct Trigger {
+typedef struct Trigger {
 	Actor trigger;
 	Actor other_actor;
 	Trigger_State state;
-};
+} Trigger;
 
-struct Query_Hit {
-	bool hit;
+typedef struct Query_Hit {
+	bool valid;
 	Vector3f32 pos;
 	Vector3f32 normal;
-};
+} Query_Hit;
 
-struct Controller_Settings {
+typedef struct Controller_Settings {
 	float slope_limit_deg;
 	float height;
 	float radius;
@@ -76,9 +85,11 @@ struct Controller_Settings {
 	int shape_layer_index;
 	int mask_index;
 	Material material;
-};
+} Controller_Settings;
 
+#ifdef _CPP
 extern "C" {
+#endif
 	void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd);
 	void destroy();
 
@@ -103,7 +114,7 @@ extern "C" {
 	void actor_set_user_data(Actor actor, void* user_data);
 	void actor_set_kinematic(Actor actor, bool kinematic);
 	Transform actor_get_transform(Actor actor);
-	void actor_set_transform(Actor actor, Transform transform, bool teleport = false);
+	void actor_set_transform(Actor actor, Transform transform, bool teleport);
 	Vector3f32 actor_get_velocity(Actor actor);
 	void actor_set_velocity(Actor actor, Vector3f32 velocity);
 
@@ -127,7 +138,7 @@ extern "C" {
 	void controller_set_position(Controller controller, Vector3f32 position);
 	void controller_move(Controller controller, Vector3f32 displacement, float dt, int mask_index);
 
-
-	
 	// Constraints
+#ifdef _CPP
 }
+#endif

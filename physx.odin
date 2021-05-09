@@ -15,7 +15,6 @@ Material :: distinct rawptr;
 Actor :: distinct rawptr;
 Triangle_Mesh :: distinct rawptr;
 Convex_Mesh :: distinct rawptr;
-Controller_Manager :: distinct rawptr;
 Controller :: distinct rawptr;
 
 Allocator :: struct {
@@ -58,7 +57,7 @@ Trigger :: struct {
 };
 
 Query_Hit :: struct {
-	hit : bool,
+	valid : bool,
 	pos : linalg.Vector3f32,
 	normal : linalg.Vector3f32,
 };
