@@ -155,8 +155,8 @@ PxFilterFlags CollisionFilterShader(
     PxFilterObjectAttributes attributes1, PxFilterData filterData1,
     PxPairFlags& pairFlags, const void* constantBlock, PxU32 constantBlockSize)
 {
-	// TODO: for per scene masks
-	// collision_masks *(Collision_Masks const&) constantBlock;
+	// TODO: for per scene masks rather than global store in constantBlock
+	// collision_masks = *(Collision_Masks const&) constantBlock;
 
 	if(((1 << filterData0.word0) & collision_masks[filterData1.word1]) != 0 ||
 		((1 << filterData1.word0) & collision_masks[filterData0.word1]) != 0) {
@@ -556,11 +556,6 @@ Buffer cook_triangle_mesh(Mesh_Description mesh_description)
 
 	gCooking->setParams(params);
 
-	if(!gCooking->validateTriangleMesh(meshDesc)) {
-		// TODO: error result
-		printf("Error cooking trimesh\n");
-	}
-
 	DefaultMemoryOutputStream outBuffer;
 	gCooking->cookTriangleMesh(meshDesc, outBuffer);
 
@@ -644,9 +639,9 @@ void controller_release(Controller controller_handle) {
 Vector3f32 controller_get_position(Controller controller_handle) {
 	PxController* controller = (PxController*) controller_handle;
 	Vector3f32 result;
-	result.data[0] = controller->getPosition().x;
-	result.data[1] = controller->getPosition().y;
-	result.data[2] = controller->getPosition().z;
+	result.x = controller->getPosition().x;
+	result.y = controller->getPosition().y;
+	result.z = controller->getPosition().z;
 	return result;
 }
 

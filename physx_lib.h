@@ -87,7 +87,7 @@ typedef struct Controller_Settings {
 	Material material;
 } Controller_Settings;
 
-#ifdef _CPP
+#ifdef __cplusplus
 extern "C" {
 #endif
 	void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd);
@@ -138,7 +138,6 @@ extern "C" {
 	void controller_set_position(Controller controller, Vector3f32 position);
 	void controller_move(Controller controller, Vector3f32 displacement, float dt, int mask_index);
 
-	// Constraints
-#ifdef _CPP
+#ifdef __cplusplus
 }
 #endif
