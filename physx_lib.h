@@ -82,8 +82,8 @@ typedef struct Controller_Settings {
 	float height;
 	float radius;
 	Vector3f32 up;
-	int shape_layer_index;
-	int mask_index;
+	uint32_t shape_layer_index;
+	uint32_t mask_index;
 	Material material;
 } Controller_Settings;
 
@@ -102,8 +102,8 @@ extern "C" {
 	Actor* scene_get_active_actors(Scene scene, uint32_t* num_actors);
 	Contact* scene_get_contacts(Scene scene, uint32_t* num_contacts);
 	Trigger* scene_get_triggers(Scene scene, uint32_t* num_contacts);
-	void scene_set_collision_mask(Scene scene, int mask_index, uint64_t layer_mask);
-	Query_Hit scene_raycast(Scene scene, Vector3f32 origin, Vector3f32 direction, float distance, int mask_index);
+	void scene_set_collision_mask(Scene scene, uint32_t mask_index, uint64_t layer_mask);
+	Query_Hit scene_raycast(Scene scene, Vector3f32 origin, Vector3f32 direction, float distance, uint32_t mask_index);
 
 	Material material_create(float static_friction, float dynamic_friction, float restitution);
 	void material_release(Material material);
@@ -118,10 +118,10 @@ extern "C" {
 	Vector3f32 actor_get_velocity(Actor actor);
 	void actor_set_velocity(Actor actor, Vector3f32 velocity);
 
-	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, Material material, int shape_layer_index, int mask_index, bool trigger);
-	void actor_add_shape_sphere(Actor actor, float radius, Material material, int shape_layer_index, int mask_index, bool trigger);
-	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh, Material material, int shape_layer_index, int mask_index);
-	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh, Material material, int shape_layer_index, int mask_index);
+	void actor_add_shape_box(Actor actor, Vector3f32 half_extents, Material material, uint32_t shape_layer_index, uint32_t mask_index, bool trigger);
+	void actor_add_shape_sphere(Actor actor, float radius, Material material, uint32_t shape_layer_index, uint32_t mask_index, bool trigger);
+	void actor_add_shape_triangle_mesh(Actor actor, Triangle_Mesh triangle_mesh, Material material, uint32_t shape_layer_index, uint32_t mask_index);
+	void actor_add_shape_convex_mesh(Actor actor, Convex_Mesh convex_mesh, Material material, uint32_t shape_layer_index, uint32_t mask_index);
 
 	Buffer cook_triangle_mesh(Mesh_Description mesh_description);
 	Buffer cook_convex_mesh(Mesh_Description mesh_description);
@@ -136,7 +136,7 @@ extern "C" {
 	void controller_release(Controller controller);
 	Vector3f32 controller_get_position(Controller controller);
 	void controller_set_position(Controller controller, Vector3f32 position);
-	void controller_move(Controller controller, Vector3f32 displacement, float dt, int mask_index);
+	void controller_move(Controller controller, Vector3f32 displacement, float dt, uint32_t mask_index);
 
 #ifdef __cplusplus
 }

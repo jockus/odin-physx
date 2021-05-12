@@ -401,13 +401,13 @@ Trigger* scene_get_triggers(Scene scene_handle, uint32_t* num_triggers) {
 	return callback->triggers;
 }
 
-void scene_set_collision_mask(Scene scene_handle, int mask_index, uint64_t mask) {
+void scene_set_collision_mask(Scene scene_handle, uint32_t mask_index, uint64_t mask) {
 	if(mask_index >= 0 && mask_index < NUM_GROUPS) {
 		collision_masks[mask_index] = mask;
 	}
 }
 
-Query_Hit scene_raycast(Scene scene_handle, Vector3f32 origin, Vector3f32 direction, float distance, int mask_index) {
+Query_Hit scene_raycast(Scene scene_handle, Vector3f32 origin, Vector3f32 direction, float distance, uint32_t mask_index) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRaycastBuffer raycast_buffer;
 	PxQueryFilterData query_filter_data;
@@ -480,7 +480,7 @@ void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
 	actor->setLinearVelocity(to_px(velocity));
 }
 
-void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material material_handle, int shape_layer_index, int mask_index, bool trigger) {
+void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxBoxGeometry geometry;
@@ -495,7 +495,7 @@ void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material m
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_handle, int shape_layer_index, int mask_index, bool trigger) {
+void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxSphereGeometry geometry;
@@ -510,7 +510,7 @@ void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, Material material_handle, int shape_layer_index, int mask_index) {
+void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxTriangleMeshGeometry geometry;
@@ -523,7 +523,7 @@ void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_me
 	// Note - no mass/inertia update. Trimeshes can't be used for simulation
 }
 
-void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, Material material_handle, int shape_layer_index, int mask_index) {
+void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxConvexMeshGeometry geometry;
@@ -649,7 +649,7 @@ void controller_set_position(Controller controller_handle, Vector3f32 position) 
 	PxController* controller = (PxController*) controller_handle;
 }
 
-void controller_move(Controller controller_handle, Vector3f32 displacement, float dt, int mask_index) {
+void controller_move(Controller controller_handle, Vector3f32 displacement, float dt, uint32_t mask_index) {
 	PxController* controller = (PxController*) controller_handle;
 	PxFilterData filter_data(collision_masks[mask_index], 0, 0, 0);
 	PxControllerFilters filters;
