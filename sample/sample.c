@@ -1,6 +1,8 @@
-#include "physx_lib.h"
+#include "..\physx_lib.h"
 #include <stdio.h>
 #include <windows.h>
+
+#pragma comment(lib, "../lib/physx_lib.lib")
 
 void* allocate(Allocator* allocator, size_t size) {
 	return _aligned_malloc(size, 16);

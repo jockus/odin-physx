@@ -1,6 +1,5 @@
 @echo off
-
-rem goto skip_physx
+setlocal
 
 rem Build physx
 if not exist physx_lib (
@@ -22,19 +21,18 @@ pushd physx_lib
 	 -DPX_OUTPUT_BIN_DIR="%root%/physx"^
 	 -DPX_BUILDSNIPPETS=FALSE^
 	 -DPX_BUILDPUBLICSAMPLES=FALSE^
-	 -DPX_GENERATE_STATIC_LIBRARIES=TRUE^
 	 -DNV_USE_STATIC_WINCRT=TRUE^
 	 -DNV_USE_DEBUG_WINCRT=FALSE^
 	 -DPX_FLOAT_POINT_PRECISE_MATH=FALSE^
-	 -DPX_PHYSX_STATIC_LIB=1^
 	 -DCMAKE_BUILD_TYPE=profile^
 	 -DPM_CMakeModules_PATH="%root%/externals/CMakeModules"^
 	 -DCMAKEMODULES_PATH="%root%/externals/CMakeModules"^
 	 -DPXSHARED_PATH="%root%/pxshared"^
 	 && nmake
 	
-	rem copy libs to physx_lib folder for easier linking
+	rem copy libs/dlls to physx_lib folder for easier linking
 	for /R "%~dp0" %%F in ("*.lib") do copy /Y %%~F . >NUL
+	for /R "%~dp0" %%F in ("*.dll") do copy /Y %%~F . >NUL
 popd
 
 :skip_physx
@@ -45,15 +43,21 @@ if not exist lib (
 )
 
 set libs=^
- physx_lib\PhysX_static_64.lib^
+ physx_lib\PhysX_64.lib^
  physx_lib\PhysXCharacterKinematic_static_64.lib^
- physx_lib\PhysXCommon_static_64.lib^
- physx_lib\PhysXCooking_static_64.lib^
+ physx_lib\PhysXCommon_64.lib^
+ physx_lib\PhysXCooking_64.lib^
  physx_lib\PhysXExtensions_static_64.lib^
- physx_lib\PhysXFoundation_static_64.lib^
+ physx_lib\PhysXFoundation_64.lib^
  physx_lib\PhysXPvdSDK_static_64.lib^
  physx_lib\PhysXVehicle_static_64.lib
 
 
-cl.exe -Z7 /c /Folib\ -MP -DNDEBUG -DPX_PHYSX_STATIC_LIB -IPhysx\physx\include -IPhysx\pxshared\include physx_lib.cpp
+cl.exe -Z7 /c /Folib\ -MP -DNDEBUG -IPhysx\physx\include -IPhysx\pxshared\include physx_lib.cpp
 lib.exe lib\physx_lib.obj %libs% /out:.\lib\physx_lib.lib
+
+rem Copy dlls
+copy /Y physx_lib\PhysX_64.dll . >NUL
+copy /Y physx_lib\PhysXCommon_64.dll . >NUL
+copy /Y physx_lib\PhysXCooking_64.dll . >NUL
+copy /Y physx_lib\PhysXFoundation_64.dll . >NUL
