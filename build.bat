@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+goto skip_physx
+
 rem Build physx
 if not exist physx_lib (
 	mkdir physx_lib
@@ -53,8 +55,7 @@ set libs=^
  physx_lib\PhysXVehicle_static_64.lib
 
 
-cl.exe -Z7 /c /Folib\ -MP -DNDEBUG -IPhysx\physx\include -IPhysx\pxshared\include physx_lib.cpp
-lib.exe lib\physx_lib.obj %libs% /out:.\lib\physx_lib.lib
+cl.exe -Z7 /c /Folib\ -MP -DNDEBUG -IPhysx\physx\include -IPhysx\pxshared\include physx_lib.cpp && lib.exe lib\physx_lib.obj %libs% /out:.\lib\physx_lib.lib
 
 rem Copy dlls
 copy /Y physx_lib\PhysX_64.dll . >NUL

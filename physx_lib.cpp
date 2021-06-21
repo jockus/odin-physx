@@ -17,11 +17,11 @@ PxDefaultCpuDispatcher* gDispatcher = nullptr;
 PxPvd* gPvd = nullptr;
 PxCooking* gCooking	= nullptr;
 
-Vector3f32 to_vec(PxVec3 v) {
-	return *(Vector3f32*) &v;
+Px_Vector3f32 to_vec(PxVec3 v) {
+	return *(Px_Vector3f32*) &v;
 }
 
-PxVec3 to_px(Vector3f32 v) {
+PxVec3 to_px(Px_Vector3f32 v) {
 	return *(PxVec3*) &v;
 }
 
@@ -30,7 +30,7 @@ class Allocator_Callback : public PxAllocatorCallback
 public:
 	Allocator_Callback() {}
 
-	Allocator_Callback(Allocator allocator)
+	Allocator_Callback(Px_Allocator allocator)
 		: allocator(allocator) {
 	}
 	virtual ~Allocator_Callback()
@@ -45,7 +45,7 @@ public:
 		allocator.deallocate(&allocator, ptr);
 	}
 
-	Allocator allocator;
+	Px_Allocator allocator;
 };
 Allocator_Callback gAllocator;
 
@@ -182,10 +182,10 @@ public:
 
 	// TODO: Init setting
 	#define MAX_NOTIFY 256
-	Contact touch[MAX_NOTIFY];
+	Px_Contact touch[MAX_NOTIFY];
 	int numTouch = 0;
 
-	Trigger triggers[MAX_NOTIFY];
+	Px_Trigger triggers[MAX_NOTIFY];
 	int numTrigger = 0;
 
 	void onConstraintBreak(PxConstraintInfo* constraints, PxU32 count) {}
@@ -234,7 +234,7 @@ public:
 				}	
 			}
 		}
-		Contact& contact = touch[numTouch++];
+		Px_Contact& contact = touch[numTouch++];
 		contact.actor0 = pairHeader.actors[0];
 		contact.actor1 = pairHeader.actors[1];
 		contact.pos = to_vec(pos);
@@ -255,7 +255,7 @@ public:
 			if (pairs[i].flags & (PxTriggerPairFlag::eREMOVED_SHAPE_TRIGGER | PxTriggerPairFlag::eREMOVED_SHAPE_OTHER))
 				continue;
 
-			Trigger_State state = eNOTIFY_TOUCH_FOUND;
+			Px_Trigger_State state = eNOTIFY_TOUCH_FOUND;
 			if(pairs[i].status & PxPairFlag::eNOTIFY_TOUCH_FOUND) {
 				state = eNOTIFY_TOUCH_FOUND;
 			}
@@ -264,7 +264,7 @@ public:
 			}
 			fflush(stdout);
 
-			Trigger& trigger = triggers[numTrigger++];
+			Px_Trigger& trigger = triggers[numTrigger++];
 			trigger.trigger = pairs[i].triggerActor;
 			trigger.other_actor = pairs[i].otherActor;
 			trigger.state = state;
@@ -272,7 +272,7 @@ public:
 	}
 };
 
-void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
+void px_init(Px_Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
 	gAllocator = Allocator_Callback(allocator);
 	gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 
@@ -297,7 +297,7 @@ void init(Allocator allocator, bool initialize_cooking, bool initialize_pvd) {
 	}
 }
 
-void destroy() {
+void px_destroy() {
 	PxCloseExtensions();
 	gDispatcher->release();
 	if(gCooking) {
@@ -316,7 +316,7 @@ void destroy() {
 	gFoundation->release();
 }
 
-Scene scene_create() {
+Px_Scene px_scene_create() {
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
 	sceneDesc.cpuDispatcher	= gDispatcher;
@@ -341,10 +341,10 @@ Scene scene_create() {
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
 
-	return (Scene) scene;
+	return (Px_Scene) scene;
 }
 
-void scene_release(Scene scene_handle) {
+void px_scene_release(Px_Scene scene_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	((PxControllerManager*) scene->userData)->release();
 	if(scene->getSimulationEventCallback()) {
@@ -354,7 +354,7 @@ void scene_release(Scene scene_handle) {
 	scene->release();
 }
 
-void scene_simulate(Scene scene_handle, float dt, void* scratch_memory_16_byte_aligned, size_t scratch_size) {
+void px_scene_simulate(Px_Scene scene_handle, float dt, void* scratch_memory_16_byte_aligned, size_t scratch_size) {
 	PxScene* scene = (PxScene*) scene_handle;
 
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
@@ -365,100 +365,100 @@ void scene_simulate(Scene scene_handle, float dt, void* scratch_memory_16_byte_a
 	scene->fetchResults(true);
 }
 
-void scene_set_gravity(Scene scene_handle, Vector3f32 gravity) {
+void px_scene_set_gravity(Px_Scene scene_handle, Px_Vector3f32 gravity) {
 	PxScene* scene = (PxScene*) scene_handle;
 	scene->setGravity(*(PxVec3*) &gravity);
 }
 
-void scene_add_actor(Scene scene_handle, Actor actor_handle) {
+void px_scene_add_actor(Px_Scene scene_handle, Px_Actor actor_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRigidActor* actor = (PxRigidActor*) actor_handle;
 	scene->addActor(*actor);
 }
 
-void scene_remove_actor(Scene scene_handle, Actor actor_handle) {
+void px_scene_remove_actor(Px_Scene scene_handle, Px_Actor actor_handle) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRigidActor* actor = (PxRigidActor*) actor_handle;
 	scene->removeActor(*actor);
 }
 
-Actor* scene_get_active_actors(Scene scene_handle, uint32_t* num_actors) {
+Px_Actor* px_scene_get_active_actors(Px_Scene scene_handle, uint32_t* num_actors) {
 	PxScene* scene = (PxScene*) scene_handle;
-	return (Actor*) scene->getActiveActors(*num_actors);
+	return (Px_Actor*) scene->getActiveActors(*num_actors);
 }
 
-Contact* scene_get_contacts(Scene scene_handle, uint32_t* num_contacts) {
+Px_Contact* px_scene_get_contacts(Px_Scene scene_handle, uint32_t* num_contacts) {
 	PxScene* scene = (PxScene*) scene_handle;
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
 	*num_contacts = (uint32_t) callback->numTouch;
 	return callback->touch;
 }
 
-Trigger* scene_get_triggers(Scene scene_handle, uint32_t* num_triggers) {
+Px_Trigger* px_scene_get_triggers(Px_Scene scene_handle, uint32_t* num_triggers) {
 	PxScene* scene = (PxScene*) scene_handle;
 	SimulationEventCallback* callback = (SimulationEventCallback*) scene->getSimulationEventCallback();
 	*num_triggers = (uint32_t) callback->numTrigger;
 	return callback->triggers;
 }
 
-void scene_set_collision_mask(Scene scene_handle, uint32_t mask_index, uint64_t mask) {
+void px_scene_set_collision_mask(Px_Scene scene_handle, uint32_t mask_index, uint64_t mask) {
 	if(mask_index >= 0 && mask_index < NUM_GROUPS) {
 		collision_masks[mask_index] = mask;
 	}
 }
 
-Query_Hit scene_raycast(Scene scene_handle, Vector3f32 origin, Vector3f32 direction, float distance, uint32_t mask_index) {
+Px_Query_Hit px_scene_raycast(Px_Scene scene_handle, Px_Vector3f32 origin, Px_Vector3f32 direction, float distance, uint32_t mask_index) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxRaycastBuffer raycast_buffer;
 	PxQueryFilterData query_filter_data;
 	query_filter_data.data.word0 = collision_masks[mask_index];
 	scene->raycast(to_px(origin), to_px(direction), distance, raycast_buffer, PxHitFlags(PxHitFlag::eDEFAULT), query_filter_data);
-	Query_Hit result;
+	Px_Query_Hit result;
 	result.valid = raycast_buffer.hasBlock;
-	result.pos = result.valid ? to_vec(raycast_buffer.block.position) : Vector3f32{0,0,0};
-	result.normal = result.valid ? to_vec(raycast_buffer.block.normal) : Vector3f32{0,0,0};
+	result.pos = result.valid ? to_vec(raycast_buffer.block.position) : Px_Vector3f32{0,0,0};
+	result.normal = result.valid ? to_vec(raycast_buffer.block.normal) : Px_Vector3f32{0,0,0};
 	return result;
 }
 
-Material material_create(float static_friction, float dynamic_friction, float restitution) {
-	return (Material) gPhysics->createMaterial(static_friction, dynamic_friction, restitution);
+Px_Material px_material_create(float static_friction, float dynamic_friction, float restitution) {
+	return (Px_Material) gPhysics->createMaterial(static_friction, dynamic_friction, restitution);
 }
 
-void material_release(Material material_handle) {
+void px_material_release(Px_Material material_handle) {
 	PxMaterial* material = (PxMaterial*) material_handle;
 	material->release();
 }
 
-Actor actor_create() {
-	return (Actor) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
+Px_Actor px_actor_create() {
+	return (Px_Actor) gPhysics->createRigidDynamic(PxTransform(PxZero, PxIdentity));
 }
 
-void actor_release(Actor actor_handle) {
+void px_actor_release(Px_Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->release();
 }
 
-void* actor_get_user_data(Actor actor_handle) {
+void* px_actor_get_user_data(Px_Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return actor->userData;
 }
 
-void actor_set_user_data(Actor actor_handle, void* user_data) {
+void px_actor_set_user_data(Px_Actor actor_handle, void* user_data) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->userData = user_data;
 }
 
-void actor_set_kinematic(Actor actor_handle, bool kinematic) {
+void px_actor_set_kinematic(Px_Actor actor_handle, bool kinematic) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, kinematic);
 }
 
-Transform actor_get_transform(Actor actor_handle) {
+Px_Transform px_actor_get_transform(Px_Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
-	return *(Transform*) &actor->getGlobalPose();
+	return *(Px_Transform*) &actor->getGlobalPose();
 }
 
-void actor_set_transform(Actor actor_handle, Transform transform, bool teleport) {
+void px_actor_set_transform(Px_Actor actor_handle, Px_Transform transform, bool teleport) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	if(!teleport && actor->getScene() && (actor->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC))
 	{
@@ -470,17 +470,17 @@ void actor_set_transform(Actor actor_handle, Transform transform, bool teleport)
 	}
 }
 
-Vector3f32 actor_get_velocity(Actor actor_handle) {
+Px_Vector3f32 px_actor_get_velocity(Px_Actor actor_handle) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	return to_vec(actor->getLinearVelocity());
 }
 
-void actor_set_velocity(Actor actor_handle, Vector3f32 velocity) {
+void px_actor_set_velocity(Px_Actor actor_handle, Px_Vector3f32 velocity) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	actor->setLinearVelocity(to_px(velocity));
 }
 
-void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
+void px_actor_add_shape_box(Px_Actor actor_handle, Px_Vector3f32 half_extents, Px_Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxBoxGeometry geometry;
@@ -495,7 +495,7 @@ void actor_add_shape_box(Actor actor_handle, Vector3f32 half_extents, Material m
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
+void px_actor_add_shape_sphere(Px_Actor actor_handle, float radius, Px_Material material_handle, uint32_t shape_layer_index, uint32_t mask_index, bool trigger) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxSphereGeometry geometry;
@@ -510,7 +510,7 @@ void actor_add_shape_sphere(Actor actor_handle, float radius, Material material_
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_mesh_handle, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
+void px_actor_add_shape_triangle_mesh(Px_Actor actor_handle, Px_Triangle_Mesh triangle_mesh_handle, Px_Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxTriangleMeshGeometry geometry;
@@ -523,7 +523,7 @@ void actor_add_shape_triangle_mesh(Actor actor_handle, Triangle_Mesh triangle_me
 	// Note - no mass/inertia update. Trimeshes can't be used for simulation
 }
 
-void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_handle, Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
+void px_actor_add_shape_convex_mesh(Px_Actor actor_handle, Px_Convex_Mesh convex_mesh_handle, Px_Material material_handle, uint32_t shape_layer_index, uint32_t mask_index) {
 	PxRigidDynamic* actor = (PxRigidDynamic*) actor_handle;
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxConvexMeshGeometry geometry;
@@ -536,7 +536,7 @@ void actor_add_shape_convex_mesh(Actor actor_handle, Convex_Mesh convex_mesh_han
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
 
-Buffer cook_triangle_mesh(Mesh_Description mesh_description)
+Px_Buffer px_cook_triangle_mesh(Px_Mesh_Description mesh_description)
 {
 	uint32_t numTrisPerLeaf = 4; // 15 for fast
 
@@ -559,13 +559,13 @@ Buffer cook_triangle_mesh(Mesh_Description mesh_description)
 	DefaultMemoryOutputStream outBuffer;
 	gCooking->cookTriangleMesh(meshDesc, outBuffer);
 
-	Buffer result;
+	Px_Buffer result;
 	result.data = outBuffer.getData();
 	result.size = outBuffer.getSize();
 	return result;
 }
 
-Buffer cook_convex_mesh(Mesh_Description mesh_description)
+Px_Buffer px_cook_convex_mesh(Px_Mesh_Description mesh_description)
 {
 	PxConvexMeshDesc desc;
 	desc.points.data = mesh_description.vertices;
@@ -576,39 +576,39 @@ Buffer cook_convex_mesh(Mesh_Description mesh_description)
 	DefaultMemoryOutputStream outBuffer;
 	gCooking->cookConvexMesh(desc, outBuffer);
 
-	Buffer result;
+	Px_Buffer result;
 	result.data = outBuffer.getData();
 	result.size = outBuffer.getSize();
 	return result;
 }
 
-void buffer_free(Buffer buffer) {
+void px_buffer_free(Px_Buffer buffer) {
 	PxAllocatorCallback &allocator = PxGetFoundation().getAllocatorCallback();
 	if(buffer.data) {
 		allocator.deallocate(buffer.data);
 	}
 }
 
-Triangle_Mesh triangle_mesh_create(Buffer buffer) {
+Px_Triangle_Mesh px_triangle_mesh_create(Px_Buffer buffer) {
 	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
-	return (Triangle_Mesh) gPhysics->createTriangleMesh(stream);
+	return (Px_Triangle_Mesh) gPhysics->createTriangleMesh(stream);
 }
-void triangle_mesh_release(Triangle_Mesh triangle_mesh_handle) {
+void px_triangle_mesh_release(Px_Triangle_Mesh triangle_mesh_handle) {
 	PxTriangleMesh* triangle_mesh = (PxTriangleMesh*) triangle_mesh_handle;
 	triangle_mesh->release();
 }
 
-Convex_Mesh convex_mesh_create(Buffer buffer) {
+Px_Convex_Mesh px_convex_mesh_create(Px_Buffer buffer) {
 	DefaultMemoryInputData stream((PxU8*) buffer.data, buffer.size);
-	return (Convex_Mesh) gPhysics->createConvexMesh(stream);
+	return (Px_Convex_Mesh) gPhysics->createConvexMesh(stream);
 }
 
-void convex_mesh_release(Convex_Mesh convex_mesh_handle) {
+void px_convex_mesh_release(Px_Convex_Mesh convex_mesh_handle) {
 	PxConvexMesh* convex_mesh = (PxConvexMesh*) convex_mesh_handle;
 	convex_mesh->release();
 }
 
-Controller controller_create(Scene scene_handle, Controller_Settings settings) {
+Px_Controller px_controller_create(Px_Scene scene_handle, Px_Controller_Settings settings) {
 	PxScene* scene = (PxScene*) scene_handle;
 	PxControllerManager* controller_manager = (PxControllerManager*) scene->userData;
 	PxCapsuleControllerDesc desc;
@@ -628,28 +628,28 @@ Controller controller_create(Scene scene_handle, Controller_Settings settings) {
 	controller->getActor()->getShapes(&shape, 1);
 	shape->setSimulationFilterData(PxFilterData(settings.shape_layer_index, settings.mask_index, 0, 13));
 	shape->setQueryFilterData(PxFilterData(1 << settings.shape_layer_index, 0, 0, 0));
-	return (Controller) controller;
+	return (Px_Controller) controller;
 }
 
-void controller_release(Controller controller_handle) {
+void px_controller_release(Px_Controller controller_handle) {
 	PxController* controller = (PxController*) controller_handle;
 	controller->release();
 }
 
-Vector3f32 controller_get_position(Controller controller_handle) {
+Px_Vector3f32 px_controller_get_position(Px_Controller controller_handle) {
 	PxController* controller = (PxController*) controller_handle;
-	Vector3f32 result;
+	Px_Vector3f32 result;
 	result.x = controller->getPosition().x;
 	result.y = controller->getPosition().y;
 	result.z = controller->getPosition().z;
 	return result;
 }
 
-void controller_set_position(Controller controller_handle, Vector3f32 position) {
+void px_controller_set_position(Px_Controller controller_handle, Px_Vector3f32 position) {
 	PxController* controller = (PxController*) controller_handle;
 }
 
-void controller_move(Controller controller_handle, Vector3f32 displacement, float dt, uint32_t mask_index) {
+void px_controller_move(Px_Controller controller_handle, Px_Vector3f32 displacement, float dt, uint32_t mask_index) {
 	PxController* controller = (PxController*) controller_handle;
 	PxFilterData filter_data(collision_masks[mask_index], 0, 0, 0);
 	PxControllerFilters filters;
