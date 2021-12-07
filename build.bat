@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-goto skip_physx
+rem goto skip_physx
 
 rem Build physx
 if not exist physx_lib (
