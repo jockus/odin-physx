@@ -18,7 +18,7 @@ Convex_Mesh :: distinct rawptr
 Controller :: distinct rawptr
 
 Allocator :: struct {
-	allocate_16_byte_aligned : #type proc "c" (allocator : ^Allocator, size : u64) -> rawptr,
+	allocate_16_byte_aligned : #type proc "c" (allocator : ^Allocator, size : u64, filename : cstring, line : i32) -> rawptr,
 	deallocate : #type proc "c" (allocator : ^Allocator, ptr : rawptr),
 	user_data : rawptr,
 }

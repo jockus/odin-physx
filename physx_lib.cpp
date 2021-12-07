@@ -38,7 +38,7 @@ public:
 	}
 
 	virtual void* allocate(size_t size, const char* type_name, const char* filename, int line) override {
-		return allocator.allocate_16_byte_aligned(&allocator, size);
+		return allocator.allocate_16_byte_aligned(&allocator, size, filename, line);
 	}
 
 	virtual void deallocate(void* ptr) {
@@ -485,12 +485,12 @@ void px_actor_add_shape_box(Px_Actor actor_handle, Px_Vector3f32 half_extents, P
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxBoxGeometry geometry;
 	geometry.halfExtents = to_px(half_extents);
-	PxShape* shape = gPhysics->createShape(geometry, *material, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, false);
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
-	actor->attachShape(*shape);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
+	actor->attachShape(*shape);
 	shape->release();
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
@@ -500,12 +500,12 @@ void px_actor_add_shape_sphere(Px_Actor actor_handle, float radius, Px_Material 
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxSphereGeometry geometry;
 	geometry.radius = radius;
-	PxShape* shape = gPhysics->createShape(geometry, *material, true);
+	PxShape* shape = gPhysics->createShape(geometry, *material, false);
 	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, !trigger);
 	shape->setFlag(PxShapeFlag::eTRIGGER_SHAPE, trigger);
-	actor->attachShape(*shape);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
+	actor->attachShape(*shape);
 	shape->release();
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }
@@ -515,10 +515,11 @@ void px_actor_add_shape_triangle_mesh(Px_Actor actor_handle, Px_Triangle_Mesh tr
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxTriangleMeshGeometry geometry;
 	geometry.triangleMesh = (PxTriangleMesh*) triangle_mesh_handle;
-	PxShape* shape = gPhysics->createShape(geometry, *material, true);
-	actor->attachShape(*shape);
+	PxShape* shape = gPhysics->createShape(geometry, *material, false);
+	shape->setFlag(PxShapeFlag::eSIMULATION_SHAPE, false);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
+	actor->attachShape(*shape);
 	shape->release();
 	// Note - no mass/inertia update. Trimeshes can't be used for simulation
 }
@@ -528,10 +529,10 @@ void px_actor_add_shape_convex_mesh(Px_Actor actor_handle, Px_Convex_Mesh convex
 	PxMaterial* material = (PxMaterial*) material_handle;
 	PxConvexMeshGeometry geometry;
 	geometry.convexMesh = (PxConvexMesh*) convex_mesh_handle;
-	PxShape* shape = gPhysics->createShape(geometry, *material, true);
-	actor->attachShape(*shape);
+	PxShape* shape = gPhysics->createShape(geometry, *material, false);
 	shape->setSimulationFilterData(PxFilterData(shape_layer_index, mask_index, 0, 0));
 	shape->setQueryFilterData(PxFilterData(1 << shape_layer_index, 0, 0, 0));
+	actor->attachShape(*shape);
 	shape->release();
 	PxRigidBodyExt::updateMassAndInertia(*actor, 1);
 }

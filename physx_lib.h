@@ -32,7 +32,7 @@ typedef void* Px_Convex_Mesh;
 typedef void* Px_Controller;
 
 typedef struct Px_Allocator {
-	void* (*allocate_16_byte_aligned)(struct Px_Allocator* allocator, size_t size);
+	void* (*allocate_16_byte_aligned)(struct Px_Allocator* allocator, size_t size, char const* filename, int line);
 	void (*deallocate)(struct Px_Allocator* allocator, void* ptr);
 	void* user_data;
 } Px_Allocator;
