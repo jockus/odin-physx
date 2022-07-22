@@ -3,7 +3,7 @@ package physx
 import "core:math/linalg"
 import "core:mem"
 
-when ODIN_OS == "windows" do foreign import physx {"lib/physx_lib.lib"}
+when ODIN_OS == .Windows do foreign import physx {"lib/physx_lib.lib"}
 
 Transform :: struct {
 	q : linalg.Quaternionf32,
